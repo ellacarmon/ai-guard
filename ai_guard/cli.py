@@ -87,6 +87,13 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy, scoring_conf
             rec_color = "red" if mock_report.recommendation == "BLOCK" else "yellow" if mock_report.recommendation == "WARN" else "green"
             click.echo(f"Recommendation: {click.style(mock_report.recommendation, fg=rec_color, bold=True)}")
             click.echo(f"Summary: {mock_report.summary}")
+            
+            # Print category breakdown if they bear any risk
+            active_categories = {k: v for k, v in mock_report.categories.items() if v > 0.0}
+            if active_categories:
+                click.echo(click.style("\nCategory Breakdown:", bold=True))
+                for cat, score in active_categories.items():
+                    click.echo(f"  - {cat}: {score}/10.0")
         
         # Policy threshold evaluation
         if fail_on_risk is not None and mock_report.risk_score >= fail_on_risk:
