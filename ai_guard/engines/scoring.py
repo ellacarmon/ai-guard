@@ -1,17 +1,31 @@
 import math
+import os
+import yaml
 from typing import List, Dict, Tuple
 from ..models.schema import Finding, Category, Severity
 
 class ScoringEngine:
-    def __init__(self):
-        # Increased variance between severity levels to penalize HIGH/CRITICAL severely
+    def __init__(self, config_path: str = None):
+        if config_path is None:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            config_path = os.path.join(base_dir, 'rules', 'scoring.yml')
+            
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            
+        weights = config.get('severity_weights', {})
         self.severity_weights = {
-            Severity.LOW: 1.0,
-            Severity.MEDIUM: 2.5,
-            Severity.HIGH: 5.0,
-            Severity.CRITICAL: 10.0
+            Severity.LOW: float(weights.get('low', 1.0)),
+            Severity.MEDIUM: float(weights.get('medium', 2.5)),
+            Severity.HIGH: float(weights.get('high', 5.0)),
+            Severity.CRITICAL: float(weights.get('critical', 10.0))
         }
-        self.k_factor = 0.25 # Decay parameter for exponential limits
+        self.k_factor = float(config.get('k_factor', 0.25))
+        
+        thresholds = config.get('risk_thresholds', {})
+        self.thresh_critical = float(thresholds.get('critical', 9.0))
+        self.thresh_high = float(thresholds.get('high', 7.0))
+        self.thresh_medium = float(thresholds.get('medium', 4.0))
         
     def calculate(self, findings: List[Finding]) -> Tuple[float, str, str, float, Dict[str, float], Dict[str, float], List[Finding]]:
         categories_breakdown: Dict[str, float] = {
@@ -48,13 +62,13 @@ class ScoringEngine:
         risk_score = round(risk_score, 2)
         
         # Step 3: Compute Risk Levels and Recommendations
-        if risk_score >= 9.0:
+        if risk_score >= self.thresh_critical:
             risk_level = "CRITICAL"
             recommendation = "BLOCK"
-        elif risk_score >= 7.0:
+        elif risk_score >= self.thresh_high:
             risk_level = "HIGH"
             recommendation = "BLOCK"
-        elif risk_score >= 4.0:
+        elif risk_score >= self.thresh_medium:
             risk_level = "MEDIUM"
             recommendation = "WARN"
         else:

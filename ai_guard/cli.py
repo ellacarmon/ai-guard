@@ -21,8 +21,9 @@ def main(ctx, verbose):
 @click.option('--fail-on-risk', type=float, help='Automatically fail if risk score exceeds threshold.')
 @click.option('--rules-dir', type=click.Path(exists=False, file_okay=False, dir_okay=True), help='Path to custom rules.')
 @click.option('--policy', type=click.Path(exists=False, dir_okay=False), help='Apply a specific policy immediately.')
+@click.option('--scoring-config', type=click.Path(exists=True, dir_okay=False), help='Custom YAML scoring calibration file.')
 @click.pass_context
-def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy):
+def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy, scoring_config):
     """Scan a target URL, local path, or package."""
     if ctx.obj.get('VERBOSE'):
         click.echo(f"VERBOSE: Scanning target: {target}", err=True)
@@ -55,7 +56,7 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy):
         
         # Phase 3: Deterministic Scoring Engine
         from .engines.scoring import ScoringEngine
-        scoring_engine = ScoringEngine()
+        scoring_engine = ScoringEngine(config_path=scoring_config)
         risk_score, risk_level, recommendation, confidence, categories, normalized_conts, top_findings = scoring_engine.calculate(findings)
         
         # Build Report

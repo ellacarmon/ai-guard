@@ -1,0 +1,12 @@
+k_factor: 0.25
+
+severity_weights:
+  low: 1.0
+  medium: 2.5
+  high: 5.0
+  critical: 10.0
+
+risk_thresholds:
+  medium: 4.0
+  high: 7.0
+  critical: 9.0
