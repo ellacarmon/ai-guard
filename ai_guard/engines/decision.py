@@ -95,9 +95,8 @@ class DecisionEngine:
                 str(features.get("execution_complexity", "none"))
             )
         elif primary_cat == "prompt_injection":
-            complexity = self.COMPLEXITY_LABELS.get(
-                str(features.get("prompt_injection_severity", "none"))
-            )
+            sig = str(features.get("injection_signal", "none"))
+            complexity = {"strong": "strong", "medium": "moderate", "weak": "weak"}.get(sig)
 
         if complexity:
             primary_desc = f"{complexity} {primary_label}"
