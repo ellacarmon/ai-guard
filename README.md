@@ -60,7 +60,7 @@ The archetype-based detection in `ai-guard` (Data Thief and Agent Hijacker) is g
 
 This paper provides the first large-scale empirical study of malicious AI agent skills, confirming 157 malicious skills across 98,380 samples. Key findings that informed our detection model:
 - **84.2%** of vulnerabilities reside in natural-language skill documentation (`SKILL.md`), not executable code.
-- The ecosystem splits into two negatively-correlated archetypes: **Data Thieves** (credential harvest + remote script execution, empirical OR=556) and **Agent Hijackers** (instruction override + autonomy suppression).
+- The ecosystem splits into two negatively-correlated archetypes: **Data Thieves** (credential harvest + remote script execution, empirical **OR=556** — a statistical Odds Ratio indicating these behaviors are 556x more likely to occur together) and **Agent Hijackers** (instruction override + autonomy suppression).
 - Advanced attacks use **shadow features** — capabilities present at runtime but absent from public documentation — in 100% of Level 3 (sophisticated) cases.
 
 ## License
