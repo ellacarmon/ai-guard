@@ -8,6 +8,19 @@ from .core.fetcher import Fetcher
 from .analyzers.ast_code import ASTCodeAnalyzer
 from .core.progress import ProgressReporter
 
+
+def _fetch_phase_message(target_type: TargetType) -> str:
+    if target_type == TargetType.LOCAL_PATH:
+        return "Staging local path..."
+    if target_type == TargetType.GITHUB_REPO:
+        return "Cloning repository..."
+    if target_type == TargetType.NPM_PACKAGE:
+        return "Fetching package from npm registry..."
+    if target_type == TargetType.PYPI_PACKAGE:
+        return "Fetching package from PyPI..."
+    return "Fetching..."
+
+
 # Exit code mapping
 EXIT_ALLOW = 0
 EXIT_WARN = 1
@@ -39,15 +52,21 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
 
     target_obj = Target(target)
     if target_obj.type == TargetType.UNKNOWN:
-        click.echo(click.style(f"Error: Unknown target format '{target}'. Must be a local path or GitHub URL.", fg="red"), err=True)
+        click.echo(
+            click.style(
+                f"Error: Unknown target format '{target}'. "
+                "Use a local path, a https://github.com/... URL, npm:<package>, or pypi:<package>.",
+                fg="red",
+            ),
+            err=True,
+        )
         sys.exit(3)
 
-    is_remote = target_obj.type != TargetType.LOCAL_PATH
     fetcher = Fetcher(target_obj, verbose=ctx.obj.get('VERBOSE'))
     try:
         # Fetch phase
         current_phase = "fetch"
-        reporter.phase_start("fetch", "Cloning repository..." if is_remote else "Staging local path...")
+        reporter.phase_start("fetch", _fetch_phase_message(target_obj.type))
         staging_path = fetcher.fetch()
         reporter.phase_end("fetch")
 
@@ -121,7 +140,13 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
             current_phase = "semantic-analysis"
             reporter.phase_start("semantic-analysis", "Running LLM semantic analysis...")
             hybrid_engine = HybridEngine(semantic_analyzer)
-            result = hybrid_engine.run(findings, context, config_path=scoring_config, policy_path=policy_path)
+            result = hybrid_engine.run(
+                findings,
+                context,
+                config_path=scoring_config,
+                policy_path=policy_path,
+                debug_log=reporter.debug if reporter.verbose else None,
+            )
             reporter.phase_end("semantic-analysis")
             reporter.phase_end("scoring")
         else:

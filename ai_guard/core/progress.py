@@ -79,3 +79,8 @@ class ProgressReporter:
         """Emit error summary line with phase name and elapsed time."""
         elapsed = time.monotonic() - self._scan_start_time
         self._emit(f"Scan failed in [{phase}] after {elapsed:.1f}s")
+
+    def debug(self, message: str) -> None:
+        """Emit a debug line to stderr when verbose mode is enabled."""
+        if self.verbose:
+            self._emit(f"[debug] {message}")
