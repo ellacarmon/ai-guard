@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Union
@@ -78,3 +80,11 @@ class Report(BaseModel):
     capabilities: List[str]
     findings: List[Finding]
     exploitability: Optional[ExploitabilityResult] = None
+    semantic_verdict: Optional["SemanticVerdict"] = None
+
+# Resolve forward reference for SemanticVerdict after it is defined in analyzers.semantic
+def _rebuild_report() -> None:
+    from ai_guard.analyzers.semantic import SemanticVerdict  # noqa: F401
+    Report.model_rebuild()
+
+_rebuild_report()

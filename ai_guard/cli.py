@@ -27,8 +27,11 @@ def main(ctx, verbose):
 @click.option('--rules-dir', type=click.Path(exists=False, file_okay=False, dir_okay=True), help='Path to custom rules.')
 @click.option('--policy', 'policy_path', type=click.Path(exists=True, dir_okay=False), help='Decision policy YAML file.')
 @click.option('--scoring-config', type=click.Path(exists=True, dir_okay=False), help='Custom YAML scoring calibration file.')
+@click.option('--semantic', is_flag=True, help='Enable LLM semantic analysis.')
+@click.option('--semantic-model', default='gpt-4o-mini', show_default=True, help='Azure AI Foundry deployment name for semantic analysis.')
+@click.option('--semantic-threshold', type=click.FloatRange(0.0, 1.0), default=0.85, show_default=True, help='Confidence threshold for semantic override.')
 @click.pass_context
-def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring_config):
+def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring_config, semantic, semantic_model, semantic_threshold):
     """Scan a target URL, local path, or package."""
     if ctx.obj.get('VERBOSE'):
         click.echo(f"VERBOSE: Scanning target: {target}", err=True)
@@ -63,10 +66,22 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
         findings.extend(code_analyzer.analyze(staging_path))
         findings.extend(prompt_analyzer.analyze(staging_path))
 
-        # Scoring + Decision Engine
-        from .engines.scoring import ScoringEngine
-        scoring_engine = ScoringEngine(config_path=scoring_config, policy_path=policy_path)
-        result = scoring_engine.calculate(findings, context=context)
+        # Semantic / Hybrid path
+        if semantic:
+            from .analyzers.semantic import SemanticAnalyzer, SemanticAnalyzerConfigError
+            from .engines.hybrid import HybridEngine
+            try:
+                semantic_analyzer = SemanticAnalyzer(model=semantic_model, confidence_threshold=semantic_threshold)
+            except SemanticAnalyzerConfigError as e:
+                click.echo(click.style(f"Semantic analysis configuration error: {e}", fg="red"), err=True)
+                sys.exit(4)
+            hybrid_engine = HybridEngine(semantic_analyzer)
+            result = hybrid_engine.run(findings, context, config_path=scoring_config, policy_path=policy_path)
+        else:
+            # Scoring + Decision Engine
+            from .engines.scoring import ScoringEngine
+            scoring_engine = ScoringEngine(config_path=scoring_config, policy_path=policy_path)
+            result = scoring_engine.calculate(findings, context=context)
 
         # Build Report
         report = Report(
@@ -85,6 +100,7 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
             capabilities=["HOST_EXECUTION"] if len(findings) > 0 else [],
             findings=findings
         )
+        report.semantic_verdict = result.get("semantic_verdict")
 
         # Output rendering
         if json_output:
@@ -105,6 +121,13 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
             if report.explanation:
                 click.echo(click.style(f"\nExplanation:", bold=True))
                 click.echo(f"  {report.explanation}")
+
+            if report.semantic_verdict:
+                click.echo(click.style("\nSemantic Analysis:", bold=True))
+                click.echo(f"  Decision: {report.semantic_verdict.decision.value.upper()}")
+                click.echo(f"  Confidence: {report.semantic_verdict.confidence_score:.2f}")
+                click.echo(f"  Explanation: {report.semantic_verdict.explanation}")
+                click.echo(f"  Flagged Pattern: {report.semantic_verdict.flagged_pattern}")
 
             # Recommendation
             if report.recommendation:

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Pre-Installation AI Agent Tool Risk Analyzer"
 dependencies = [
     "click>=8.1.7",
+    "openai>=1.0.0",
     "pydantic>=2.7.0",
     "pyyaml>=6.0.1"
 ]

@@ -43,3 +43,4 @@ staging/
 .env
 .idea/
 .vscode/
+.kiro/
