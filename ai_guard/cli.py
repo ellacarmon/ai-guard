@@ -57,7 +57,7 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy, scoring_conf
         # Phase 3: Deterministic Scoring Engine
         from .engines.scoring import ScoringEngine
         scoring_engine = ScoringEngine(config_path=scoring_config)
-        risk_score, risk_level, recommendation, confidence, categories, normalized_conts, top_findings = scoring_engine.calculate(findings)
+        risk_score, risk_level, recommendation, confidence, categories, normalized_conts, top_findings, features = scoring_engine.calculate(findings)
         
         # Build Report
         mock_report = Report(
@@ -69,6 +69,7 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy, scoring_conf
             categories=categories,
             normalized_contributions=normalized_conts,
             top_findings=top_findings,
+            features=features,
             capabilities=["HOST_EXECUTION"] if len(findings) > 0 else [],
             findings=findings
         )
@@ -94,6 +95,14 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy, scoring_conf
                 click.echo(click.style("\nCategory Breakdown:", bold=True))
                 for cat, score in active_categories.items():
                     click.echo(f"  - {cat}: {score}/10.0")
+            
+            # Print extracted features
+            active_features = {k: v for k, v in mock_report.features.items() if v}
+            if active_features:
+                click.echo(click.style("\nExtracted Features:", bold=True))
+                for feat, val in active_features.items():
+                    display = val if isinstance(val, int) else "✓"
+                    click.echo(f"  - {feat}: {display}")
         
         # Policy threshold evaluation
         if fail_on_risk is not None and mock_report.risk_score >= fail_on_risk:

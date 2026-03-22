@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 
 class Category(str, Enum):
     CODE_EXECUTION = "code_execution"
@@ -34,5 +34,6 @@ class Report(BaseModel):
     categories: Dict[str, float]
     normalized_contributions: Dict[str, float]
     top_findings: List[Finding]
+    features: Dict[str, Union[bool, int]] = {}
     capabilities: List[str]
     findings: List[Finding]

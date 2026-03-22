@@ -12,7 +12,7 @@ class TestScoringEngine(unittest.TestCase):
             Finding(rule_id="r1", category=Category.CODE_EXECUTION, severity=Severity.CRITICAL, 
                     file_path="f.py", description="eval", confidence=1.0)
         ]
-        risk_score, risk_level, rec, conf, _, _, _ = self.engine.calculate(findings)
+        risk_score, risk_level, rec, conf, _, _, _, _ = self.engine.calculate(findings)
         self.assertGreaterEqual(risk_score, 9.0)
         self.assertEqual(risk_level, "CRITICAL")
         self.assertEqual(rec, "BLOCK")
@@ -25,7 +25,7 @@ class TestScoringEngine(unittest.TestCase):
                     file_path="f.py", description="low", confidence=1.0)
             for i in range(100)
         ]
-        risk_score, _, _, _, categories, _, _ = self.engine.calculate(findings)
+        risk_score, _, _, _, categories, _, _, _ = self.engine.calculate(findings)
         self.assertLessEqual(risk_score, 10.0)
         self.assertLessEqual(categories[Category.CODE_EXECUTION.value], 10.0)
 
@@ -39,7 +39,7 @@ class TestScoringEngine(unittest.TestCase):
             Finding(rule_id="r3", category=Category.FILESYSTEM_ACCESS, severity=Severity.MEDIUM, 
                     file_path="h.py", description="fs", confidence=1.0)
         ]
-        risk_score, risk_level, rec, _, _, _, _ = self.engine.calculate(findings)
+        risk_score, risk_level, rec, _, _, _, _, _ = self.engine.calculate(findings)
         self.assertGreaterEqual(risk_score, 4.0)
         self.assertLess(risk_score, 8.0)
         self.assertIn(risk_level, ["MEDIUM", "HIGH"])

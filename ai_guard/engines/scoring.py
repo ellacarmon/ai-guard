@@ -3,6 +3,7 @@ import yaml
 from typing import List, Dict, Tuple
 from ..models.schema import Finding, Category, Severity
 from .normalization import NormalizationLayer
+from .features import FeatureExtractor
 
 class ScoringEngine:
     def __init__(self, config_path: str = None):
@@ -33,7 +34,11 @@ class ScoringEngine:
             severity_weights=self.severity_weights
         )
         
-    def calculate(self, findings: List[Finding]) -> Tuple[float, str, str, float, Dict[str, float], Dict[str, float], List[Finding]]:
+    def calculate(self, findings: List[Finding]) -> Tuple[float, str, str, float, Dict[str, float], Dict[str, float], List[Finding], Dict]:
+        
+        # Step 0: Feature Abstraction Layer - findings → features
+        feature_extractor = FeatureExtractor()
+        features = feature_extractor.extract(findings)
         
         # Step 1 & 2: Normalization Layer - Diminishing returns & Weighted Aggregation
         categories_breakdown = self.normalization_layer.apply_diminishing_returns(findings)
@@ -74,4 +79,4 @@ class ScoringEngine:
             reverse=True
         )[:5]
         
-        return risk_score, risk_level, recommendation, confidence, categories_breakdown, normalized_contributions, top_findings
+        return risk_score, risk_level, recommendation, confidence, categories_breakdown, normalized_contributions, top_findings, features
