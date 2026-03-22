@@ -121,7 +121,13 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
             current_phase = "semantic-analysis"
             reporter.phase_start("semantic-analysis", "Running LLM semantic analysis...")
             hybrid_engine = HybridEngine(semantic_analyzer)
-            result = hybrid_engine.run(findings, context, config_path=scoring_config, policy_path=policy_path)
+            result = hybrid_engine.run(
+                findings,
+                context,
+                config_path=scoring_config,
+                policy_path=policy_path,
+                debug_log=reporter.debug if reporter.verbose else None,
+            )
             reporter.phase_end("semantic-analysis")
             reporter.phase_end("scoring")
         else:
