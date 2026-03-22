@@ -11,6 +11,7 @@ It forces targeted code to run through a custom static analysis risk scoring mod
 - **Policy-Driven Decision Engine:** Automatically maps combined signals into actionable `ALLOW`, `WARN`, or `BLOCK` decisions based on YAML configuration.
 - **Context-Aware Scoring:** Intelligently extracts structural signals (like `is_framework`) to separate high-risk raw execution from safe library runtime internals.
 - **Confidence Scoring:** Validates the strength and ambiguity of risk signals, gracefully downgrading uncertain blocks to warnings.
+- **LLM Semantic Analysis:** Optional second-opinion pass powered by Azure AI Foundry that evaluates the true intent of flagged code snippets, reducing false positives without sacrificing security coverage.
 - **Output Formats:** Rich CLI formatting (yielding clear human-readable explanations and recommendations), or full `Pydantic`-validated JSON for programmatic aggregation.
 
 ## Installation
@@ -47,6 +48,48 @@ To enforce custom strict policies, provide a custom YAML policy template:
 ```bash
 ai-guard scan ./local_skill_folder --policy custom_policy.yml
 ```
+
+## LLM Semantic Analysis (Azure AI Foundry)
+
+The static analysis engine is fast and deterministic, but can produce false positives — for example, flagging a legitimate `subprocess` call used for a local math calculation the same way it flags a reverse shell. The semantic analysis layer adds a second-opinion pass that uses an LLM to evaluate the true intent of the flagged code snippet.
+
+When enabled, the hybrid engine runs the static tier first. If the result is `WARN` or `BLOCK` and involves a `code_execution` or `network_access` finding, the LLM is invoked to assess the snippet. A high-confidence `ALLOW` verdict from the LLM overrides the static decision, updating both the final verdict and the recommendation.
+
+### Setup
+
+Set the following environment variables:
+
+```bash
+export AZURE_OPENAI_API_KEY=your-key
+export AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+export AZURE_OPENAI_API_VERSION=2024-12-01-preview  # optional, this is the default
+```
+
+### Usage
+
+Add `--semantic` to any scan to enable the hybrid engine:
+
+```bash
+ai-guard scan https://github.com/langchain-ai/langchain --semantic
+```
+
+Override the default deployment name or confidence threshold:
+
+```bash
+ai-guard scan https://github.com/langchain-ai/langchain --semantic --semantic-model gpt-4o --semantic-threshold 0.90
+```
+
+When a semantic override is applied, the output includes a dedicated section:
+
+```
+Semantic Analysis:
+  Decision: ALLOW
+  Confidence: 0.95
+  Explanation: The subprocess call is used for a bounded local computation with no external I/O.
+  Flagged Pattern: subprocess.run with shell=True
+```
+
+If the LLM API is unavailable or returns an unparseable response, `ai-guard` degrades gracefully to the static verdict — the scan never fails due to an LLM outage.
 
 ## Contributing
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on submitting pull requests to the project.

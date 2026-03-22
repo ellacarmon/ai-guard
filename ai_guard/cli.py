@@ -6,6 +6,7 @@ from .models.schema import Report, Severity
 from .core.ingestion import Target, TargetType
 from .core.fetcher import Fetcher
 from .analyzers.ast_code import ASTCodeAnalyzer
+from .core.progress import ProgressReporter
 
 # Exit code mapping
 EXIT_ALLOW = 0
@@ -33,19 +34,22 @@ def main(ctx, verbose):
 @click.pass_context
 def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring_config, semantic, semantic_model, semantic_threshold):
     """Scan a target URL, local path, or package."""
-    if ctx.obj.get('VERBOSE'):
-        click.echo(f"VERBOSE: Scanning target: {target}", err=True)
+    reporter = ProgressReporter(verbose=ctx.obj.get('VERBOSE'))
+    current_phase = "init"
 
     target_obj = Target(target)
     if target_obj.type == TargetType.UNKNOWN:
         click.echo(click.style(f"Error: Unknown target format '{target}'. Must be a local path or GitHub URL.", fg="red"), err=True)
         sys.exit(3)
 
+    is_remote = target_obj.type != TargetType.LOCAL_PATH
     fetcher = Fetcher(target_obj, verbose=ctx.obj.get('VERBOSE'))
     try:
+        # Fetch phase
+        current_phase = "fetch"
+        reporter.phase_start("fetch", "Cloning repository..." if is_remote else "Staging local path...")
         staging_path = fetcher.fetch()
-        if ctx.obj.get('VERBOSE'):
-            click.echo(f"VERBOSE: Target staged at {staging_path}", err=True)
+        reporter.phase_end("fetch")
 
         # Basic parsing metric
         files_count = sum(len(files) for _, _, files in os.walk(staging_path))
@@ -55,16 +59,50 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
         from .analyzers.prompt import PromptAnalyzer
         from .analyzers.context import ContextAnalyzer
 
+        # Context analysis
+        current_phase = "context-analysis"
+        reporter.phase_start("context-analysis", "Analyzing repository context...")
         context_analyzer = ContextAnalyzer()
         context = context_analyzer.analyze(staging_path)
+        reporter.phase_end("context-analysis")
 
         rule_engine = RuleEngine()
         code_analyzer = ASTCodeAnalyzer(rule_engine=rule_engine)
         prompt_analyzer = PromptAnalyzer(rule_engine=rule_engine)
 
         findings = []
-        findings.extend(code_analyzer.analyze(staging_path))
-        findings.extend(prompt_analyzer.analyze(staging_path))
+
+        # Code analysis
+        py_files_total = sum(1 for _, _, fs in os.walk(staging_path) for f in fs if f.endswith('.py'))
+        current_phase = "code-analysis"
+        reporter.phase_start("code-analysis", f"Scanning {py_files_total} Python files...")
+        code_processed = [0]
+
+        def code_cb(path, n_findings):
+            code_processed[0] += 1
+            reporter.file_progress("code-analysis", code_processed[0], py_files_total, path, n_findings)
+
+        findings.extend(code_analyzer.analyze(staging_path, progress_callback=code_cb))
+        reporter.progress_done("code-analysis")
+        reporter.phase_end("code-analysis")
+
+        # Prompt analysis
+        prompt_extensions = {'.md', '.txt', '.prompt'}
+        prompt_files_total = sum(
+            1 for _, _, fs in os.walk(staging_path) for f in fs
+            if os.path.splitext(f)[1].lower() in prompt_extensions or f.upper() in ['README', 'SKILL']
+        )
+        current_phase = "prompt-analysis"
+        reporter.phase_start("prompt-analysis", f"Scanning {prompt_files_total} prompt/doc files...")
+        prompt_processed = [0]
+
+        def prompt_cb(path, n_findings):
+            prompt_processed[0] += 1
+            reporter.file_progress("prompt-analysis", prompt_processed[0], prompt_files_total, path, n_findings)
+
+        findings.extend(prompt_analyzer.analyze(staging_path, progress_callback=prompt_cb))
+        reporter.progress_done("prompt-analysis")
+        reporter.phase_end("prompt-analysis")
 
         # Semantic / Hybrid path
         if semantic:
@@ -75,13 +113,27 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
             except SemanticAnalyzerConfigError as e:
                 click.echo(click.style(f"Semantic analysis configuration error: {e}", fg="red"), err=True)
                 sys.exit(4)
+
+            # Scoring (inside hybrid)
+            current_phase = "scoring"
+            reporter.phase_start("scoring", "Calculating risk score...")
+            # Semantic analysis
+            current_phase = "semantic-analysis"
+            reporter.phase_start("semantic-analysis", "Running LLM semantic analysis...")
             hybrid_engine = HybridEngine(semantic_analyzer)
             result = hybrid_engine.run(findings, context, config_path=scoring_config, policy_path=policy_path)
+            reporter.phase_end("semantic-analysis")
+            reporter.phase_end("scoring")
         else:
             # Scoring + Decision Engine
             from .engines.scoring import ScoringEngine
+            current_phase = "scoring"
+            reporter.phase_start("scoring", "Calculating risk score...")
             scoring_engine = ScoringEngine(config_path=scoring_config, policy_path=policy_path)
             result = scoring_engine.calculate(findings, context=context)
+            reporter.phase_end("scoring")
+
+        reporter.summary(files_count, len(findings))
 
         # Build Report
         report = Report(
@@ -176,6 +228,7 @@ def scan(ctx, target, json_output, fail_on_risk, rules_dir, policy_path, scoring
     except SystemExit:
         raise
     except Exception as e:
+        reporter.error_summary(current_phase)
         click.echo(click.style(f"Failed analysis: {e}", fg="red"), err=True)
         sys.exit(4)
     finally:

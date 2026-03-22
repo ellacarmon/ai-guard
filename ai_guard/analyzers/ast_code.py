@@ -1,9 +1,10 @@
 import ast
 import os
-from typing import List
+from typing import List, Optional
 from .base import BaseAnalyzer
 from ..models.schema import Finding, Category, Severity
 from ..engines.rules import RuleEngine
+from ..core import ProgressCallback
 
 class SecurityNodeVisitor(ast.NodeVisitor):
     def __init__(self, filename: str, rule_engine: RuleEngine):
@@ -83,23 +84,34 @@ class ASTCodeAnalyzer(BaseAnalyzer):
     def __init__(self, rule_engine: RuleEngine):
         self.rule_engine = rule_engine
 
-    def analyze(self, target_dir: str) -> List[Finding]:
+    def analyze(
+        self,
+        target_dir: str,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> List[Finding]:
         findings = []
-        for root, _, files in os.walk(target_dir):
-            for file in files:
-                if file.endswith('.py'):
-                    filepath = os.path.join(root, file)
-                    try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        
-                        tree = ast.parse(content, filename=filepath)
-                        relative_path = os.path.relpath(filepath, target_dir)
-                        
-                        visitor = SecurityNodeVisitor(filename=relative_path, rule_engine=self.rule_engine)
-                        visitor.visit(tree)
-                        findings.extend(visitor.findings)
-                    except Exception:
-                        # Skip files that can't be read or parsed (e.g., Python 2 syntax)
-                        continue
+        py_files = [
+            os.path.join(root, f)
+            for root, _, files in os.walk(target_dir)
+            for f in files if f.endswith('.py')
+        ]
+        for filepath in py_files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                tree = ast.parse(content, filename=filepath)
+                relative_path = os.path.relpath(filepath, target_dir)
+
+                visitor = SecurityNodeVisitor(filename=relative_path, rule_engine=self.rule_engine)
+                visitor.visit(tree)
+                new_findings = visitor.findings
+                findings.extend(new_findings)
+            except Exception:
+                # Skip files that can't be read or parsed (e.g., Python 2 syntax)
+                new_findings = []
+                relative_path = os.path.relpath(filepath, target_dir)
+
+            if progress_callback is not None:
+                progress_callback(relative_path, len(new_findings))
         return findings
