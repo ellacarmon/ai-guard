@@ -10,7 +10,9 @@ dependencies = [
     "click>=8.1.7",
     "openai>=1.0.0",
     "pydantic>=2.7.0",
-    "pyyaml>=6.0.1"
+    "pyyaml>=6.0.1",
+    "requests>=2.31.0",
+    "rich>=13.7.0",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
@@ -26,6 +28,16 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+injection = [
+    "transformers>=4.36.0",
+    "torch>=2.0.0",
+    "safetensors>=0.4.0",
+]
+ml = [
+    "transformers>=4.36.0",
+    "torch>=2.0.0",
+    "safetensors>=0.4.0",
+]
 injection-prefilter = [
     "transformers>=4.36.0",
     "torch>=2.0.0",
@@ -41,3 +53,6 @@ agentlens = "agentlens.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["agentlens*"]
+
+[tool.setuptools.package-data]
+agentlens = ["rules/*.yml"]

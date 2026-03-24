@@ -2,6 +2,7 @@ import click
 import json
 import os
 import sys
+from . import __version__
 from .models.schema import Report, Severity
 from .core.ingestion import Target, TargetType
 from .core.fetcher import Fetcher
@@ -29,6 +30,7 @@ EXIT_BLOCK = 2
 
 @click.group()
 @click.option('--verbose', '-v', is_flag=True, help='Enable debug logging.')
+@click.version_option(__version__, '--version', prog_name='agentlens')
 @click.pass_context
 def main(ctx, verbose):
     """AgentLens: Pre-Installation AI Agent Tool Risk Analyzer"""
@@ -48,7 +50,7 @@ def main(ctx, verbose):
 @click.option(
     '--semantic-prefilter',
     is_flag=True,
-    help='Rank semantic batch with a local prompt-injection model (requires agentlens[injection-prefilter]).',
+    help='Rank semantic batch with a local prompt-injection model (requires agentlens[injection]).',
 )
 @click.option(
     '--semantic-prefilter-model',
