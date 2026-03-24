@@ -2,8 +2,8 @@ import shutil
 import tempfile
 import unittest
 
-from ai_guard.analyzers.script_code import ScriptCodeAnalyzer
-from ai_guard.engines.scoring import ScoringEngine
+from agentlens.analyzers.script_code import ScriptCodeAnalyzer
+from agentlens.engines.scoring import ScoringEngine
 
 
 class TestScriptCodeAnalyzer(unittest.TestCase):

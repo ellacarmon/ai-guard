@@ -16,13 +16,13 @@ def _distribution_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("ai-guard")
+        return version("agentlens")
     except Exception:
         return "0.1.0"
 
 
 def _http_user_agent() -> str:
-    return f"ai-guard/{_distribution_version()} (+https://github.com/ellacarmon/ai-guard)"
+    return f"agentlens/{_distribution_version()} (+https://github.com/ellacarmon/AgentLens)"
 
 
 def _http_get_json(url: str) -> dict:
@@ -51,7 +51,7 @@ class Fetcher:
             return os.path.abspath(self.target.raw)
 
         if self.target.type == TargetType.GITHUB_REPO:
-            self._temp_dir = tempfile.TemporaryDirectory(prefix="ai_guard_")
+            self._temp_dir = tempfile.TemporaryDirectory(prefix="agentlens_")
             staging_path = self._temp_dir.name
             if self.verbose:
                 click.echo(f"VERBOSE: Cloning {self.target.raw} into {staging_path}", err=True)
@@ -83,7 +83,7 @@ class Fetcher:
         if not name:
             raise ValueError("npm package name missing")
 
-        self._temp_dir = tempfile.TemporaryDirectory(prefix="ai_guard_")
+        self._temp_dir = tempfile.TemporaryDirectory(prefix="agentlens_")
         staging_path = self._temp_dir.name
         encoded = quote(name, safe="")
         meta_url = f"https://registry.npmjs.org/{encoded}"
@@ -129,7 +129,7 @@ class Fetcher:
         if not name:
             raise ValueError("PyPI package name missing")
 
-        self._temp_dir = tempfile.TemporaryDirectory(prefix="ai_guard_")
+        self._temp_dir = tempfile.TemporaryDirectory(prefix="agentlens_")
         staging_path = self._temp_dir.name
         encoded = quote(name, safe="")
         meta_url = f"https://pypi.org/pypi/{encoded}/json"

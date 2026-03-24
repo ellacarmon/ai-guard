@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-guard"
+name = "agentlens"
 version = "0.1.0"
 description = "Pre-Installation AI Agent Tool Risk Analyzer"
 dependencies = [
@@ -16,7 +16,7 @@ requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 authors = [
-    { name = "ai-guard contributors" }
+    { name = "AgentLens contributors" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -32,11 +32,11 @@ injection-prefilter = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ellacarmon/ai-guard"
-Repository = "https://github.com/ellacarmon/ai-guard"
+Homepage = "https://github.com/ellacarmon/AgentLens"
+Repository = "https://github.com/ellacarmon/AgentLens"
 
 [project.scripts]
-ai-guard = "ai_guard.cli:main"
+agentlens = "agentlens.cli:main"
 
-[tool.setuptools]
-packages = ["ai_guard"]
+[tool.setuptools.packages.find]
+include = ["agentlens*"]

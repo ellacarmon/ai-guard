@@ -1,4 +1,4 @@
-"""Progress reporting for the ai-guard scan pipeline."""
+"""Progress reporting for the AgentLens scan pipeline."""
 
 import sys
 import time

@@ -1,7 +1,7 @@
-# ai-guard
+# AgentLens
 ![License](https://img.shields.io/badge/License-GPL_v3-blue.svg)
 
-`ai-guard` is a deterministic, pre-installation security wrapper for AI Agent skills, tools, and repositories.
+`AgentLens` is a deterministic, pre-installation security wrapper for AI Agent skills, tools, and repositories.
 
 It forces targeted code to run through a custom static analysis risk scoring model before allowing it to interact with your execution environment, aggressively identifying common vulnerabilities introduced by AI-generated external dependencies.
 
@@ -18,11 +18,11 @@ It forces targeted code to run through a custom static analysis risk scoring mod
 
 ## Installation
 
-You can install `ai-guard` locally using pip:
+You can install `AgentLens` locally using pip:
 
 ```bash
-git clone https://github.com/ellacarmon/ai-guard.git
-cd ai-guard
+git clone https://github.com/ellacarmon/AgentLens.git
+cd AgentLens
 pip install .
 ```
 
@@ -38,19 +38,19 @@ pip install .
 Examples:
 
 ```bash
-ai-guard scan https://github.com/langchain-ai/langchain
-ai-guard scan ./local_skill_folder
-ai-guard scan npm:some-package
-ai-guard scan pypi:some-project
+agentlens scan https://github.com/langchain-ai/langchain
+agentlens scan ./local_skill_folder
+agentlens scan npm:some-package
+agentlens scan pypi:some-project
 ```
 
 To integrate into programmatic pipelines (such as a GitHub action or a pre-flight execution check), use `--json`:
 
 ```bash
-ai-guard scan https://github.com/microsoft/autogen --json
+agentlens scan https://github.com/microsoft/autogen --json
 ```
 
-For pipeline safety, `ai-guard` automatically returns semantic exit codes reflecting the decision engine state:
+For pipeline safety, `AgentLens` automatically returns semantic exit codes reflecting the decision engine state:
 - `0`: ALLOW
 - `1`: WARN
 - `2`: BLOCK
@@ -58,7 +58,7 @@ For pipeline safety, `ai-guard` automatically returns semantic exit codes reflec
 To enforce custom strict policies, provide a custom YAML policy template:
 
 ```bash
-ai-guard scan ./local_skill_folder --policy custom_policy.yml
+agentlens scan ./local_skill_folder --policy custom_policy.yml
 ```
 
 ## LLM Semantic Analysis (Azure AI Foundry)
@@ -67,7 +67,7 @@ The static analysis engine is fast and deterministic, but can produce false posi
 
 When enabled, the hybrid engine runs the static tier first. If the result is `WARN` or `BLOCK` and there is at least one `code_execution` or `network_access` finding, the LLM is invoked **once per scan** on a small batch of the strongest such findings (up to three), so the model sees a bit of cross-file context instead of a single line in isolation. A high-confidence `ALLOW` verdict from the LLM overrides the static decision, updating both the final verdict and the recommendation.
 
-To print which findings were sent to the model (paths, rules, severities), run the CLI with **verbose** on the top-level command: `ai-guard -v scan ... --semantic`.
+To print which findings were sent to the model (paths, rules, severities), run the CLI with **verbose** on the top-level command: `agentlens -v scan ... --semantic`.
 
 ### Setup
 
@@ -84,13 +84,13 @@ export AZURE_OPENAI_API_VERSION=2024-12-01-preview  # optional, this is the defa
 Add `--semantic` to any scan to enable the hybrid engine:
 
 ```bash
-ai-guard scan https://github.com/langchain-ai/langchain --semantic
+agentlens scan https://github.com/langchain-ai/langchain --semantic
 ```
 
 Override the default deployment name or confidence threshold:
 
 ```bash
-ai-guard scan https://github.com/langchain-ai/langchain --semantic --semantic-model gpt-4o --semantic-threshold 0.90
+agentlens scan https://github.com/langchain-ai/langchain --semantic --semantic-model gpt-4o --semantic-threshold 0.90
 ```
 
 When a semantic override is applied, the output includes a dedicated section:
@@ -103,14 +103,14 @@ Semantic Analysis:
   Flagged Pattern: subprocess.run with shell=True
 ```
 
-If the LLM API is unavailable or returns an unparseable response, `ai-guard` degrades gracefully to the static verdict — the scan never fails due to an LLM outage.
+If the LLM API is unavailable or returns an unparseable response, `AgentLens` degrades gracefully to the static verdict — the scan never fails due to an LLM outage.
 
 ## Contributing
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on submitting pull requests to the project.
 
 ## Research
 
-The archetype-based detection in `ai-guard` (Data Thief and Agent Hijacker) is grounded in:
+The archetype-based detection in `AgentLens` (Data Thief and Agent Hijacker) is grounded in:
 
 > **Malicious Agent Skills in the Wild: A Large-Scale Security Empirical Study**  
 > Liu et al., 2026 · [arXiv:2602.06547](https://arxiv.org/abs/2602.06547)

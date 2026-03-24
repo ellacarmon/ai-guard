@@ -1,6 +1,6 @@
-# Contributing to ai-guard
+# Contributing to AgentLens
 
-First off, thank you for considering contributing to `ai-guard`! It's people like you that make the security ecosystem safer for everyone.
+First off, thank you for considering contributing to `AgentLens`! It's people like you that make the security ecosystem safer for everyone.
 
 ## Getting Started
 

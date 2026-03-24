@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import re
 import sys
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
+from ..analyzers.guardrail import GUARDRAIL_OVERRIDE_EXPLANATION
 from ..models.schema import (
     Category,
     Finding,
@@ -10,7 +14,11 @@ from ..models.schema import (
     SemanticSampleSummary,
     Severity,
 )
-from ..analyzers.semantic import SemanticAnalyzer, SemanticDecision
+from ..analyzers.semantic import (
+    SemanticAnalyzer,
+    SemanticDecision,
+    SemanticVerdict,
+)
 from .scoring import ScoringEngine
 
 if TYPE_CHECKING:
@@ -24,12 +32,35 @@ SEMANTIC_SAMPLE_SIZE = 3
 SEMANTIC_CANDIDATE_POOL_SIZE = 15
 """How many top static trigger findings to score with the injection classifier before picking the batch."""
 
+LOCAL_INJECTION_BLOCK_THRESHOLD = 0.90
+"""If any local prompt-injection score meets this threshold, skip the cloud LLM and block."""
+
+OBFUSCATION_RULE_IDS = {
+    "CODE_OBFUSCATION_DETECTED",
+    "SKILL_OBFUSCATED_CODE",
+    "SC3",
+}
+
 SEVERITY_RANK = {
     Severity.CRITICAL: 4,
     Severity.HIGH: 3,
     Severity.MEDIUM: 2,
     Severity.LOW: 1,
 }
+
+
+@dataclass(frozen=True)
+class SemanticSelection:
+    findings: List[Finding]
+    injection_scores: List[Optional[float]]
+    prefilter_model: Optional[str]
+    candidate_pool_count: int
+    hard_block_verdict: Optional[SemanticVerdict] = None
+
+    def __iter__(self):
+        yield self.findings
+        yield self.injection_scores
+        yield self.prefilter_model
 
 
 def select_top_trigger_findings(
@@ -94,35 +125,66 @@ def finding_text_for_injection_classifier(finding: Finding) -> str:
     return text[:4000]
 
 
+def normalize_injection_text(text: str) -> str:
+    """Normalize snippet text so repeated injected instructions cluster together."""
+    text = text.lower()
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[\"'`]+", "", text)
+    return text.strip()[:1200]
+
+
+def finding_cluster_key(finding: Finding) -> str:
+    text = normalize_injection_text(finding_text_for_injection_classifier(finding))
+    if not text:
+        text = finding.file_path or finding.rule_id
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return f"{finding.rule_id}:{digest}"
+
+
+def choose_representative(
+    current: Tuple[Finding, float],
+    candidate: Tuple[Finding, float],
+) -> Tuple[Finding, float]:
+    cur_finding, cur_score = current
+    cand_finding, cand_score = candidate
+    cur_key = (cur_score, SEVERITY_RANK[cur_finding.severity], cur_finding.confidence)
+    cand_key = (
+        cand_score,
+        SEVERITY_RANK[cand_finding.severity],
+        cand_finding.confidence,
+    )
+    return candidate if cand_key > cur_key else current
+
+
 def select_findings_for_semantic_llm(
     findings: List[Finding],
     *,
     prefilter: Optional["PromptInjectionPrefilter"] = None,
     sample_size: int = SEMANTIC_SAMPLE_SIZE,
     pool_size: int = SEMANTIC_CANDIDATE_POOL_SIZE,
-) -> Tuple[List[Finding], List[Optional[float]], Optional[str]]:
+) -> SemanticSelection:
     """Pick findings for the semantic LLM; optionally rank a larger pool by injection score.
 
     Without ``prefilter``, behavior matches the historical policy: top ``sample_size``
     trigger findings by static severity/confidence (pool size only affects work done).
 
-    With ``prefilter``, up to ``pool_size`` trigger findings are scored locally; the
-    highest attack-likelihood snippets win the ``sample_size`` slots (ties break on
-    static severity, then confidence) so the cloud LLM focuses on the most ambiguous /
-    adversarial-looking content.
+    With ``prefilter``, all trigger findings are scored locally, clustered by normalized
+    snippet content, and only the strongest representative from each cluster competes for
+    the limited semantic LLM budget. Extremely high-confidence injection scores block
+    immediately and skip the cloud LLM.
     """
     pool = select_top_trigger_findings(findings, limit=pool_size)
     if not pool:
-        return [], [], None
+        return SemanticSelection([], [], None, 0)
 
-    model_id: Optional[str] = None
-    if prefilter is None or len(pool) <= sample_size:
+    if prefilter is None:
         chosen = pool[:sample_size]
         scores: List[Optional[float]] = [None] * len(chosen)
-        return chosen, scores, model_id
+        return SemanticSelection(chosen, scores, None, len(pool))
 
     try:
-        texts = [finding_text_for_injection_classifier(f) for f in pool]
+        trigger_findings = [f for f in findings if f.category in TRIGGER_CATEGORIES]
+        texts = [finding_text_for_injection_classifier(f) for f in trigger_findings]
         raw_scores = prefilter.score_texts(texts)
     except Exception as e:
         print(
@@ -130,15 +192,51 @@ def select_findings_for_semantic_llm(
             file=sys.stderr,
         )
         chosen = pool[:sample_size]
-        return chosen, [None] * len(chosen), None
+        return SemanticSelection(chosen, [None] * len(chosen), None, len(pool))
 
     model_id = getattr(prefilter, "model_id", None)
-    paired = list(zip(pool, raw_scores))
+    scored = list(zip(trigger_findings, raw_scores))
+    hard_block = max(
+        scored,
+        key=lambda p: (p[1], SEVERITY_RANK[p[0].severity], p[0].confidence),
+        default=None,
+    )
+    if hard_block is not None and hard_block[1] > LOCAL_INJECTION_BLOCK_THRESHOLD:
+        finding, score = hard_block
+        return SemanticSelection(
+            [],
+            [],
+            model_id,
+            len(scored),
+            hard_block_verdict=SemanticVerdict(
+                decision=SemanticDecision.BLOCK,
+                confidence_score=1.0,
+                explanation=GUARDRAIL_OVERRIDE_EXPLANATION,
+                flagged_pattern=(
+                    f"local_prompt_injection_guardrail(score={score:.2f},"
+                    f" file={finding.file_path}:{finding.line_number or '?'})"
+                ),
+            ),
+        )
+
+    representatives: Dict[str, Tuple[Finding, float]] = {}
+    for finding, score in scored:
+        key = finding_cluster_key(finding)
+        current = representatives.get(key)
+        candidate = (finding, score)
+        representatives[key] = candidate if current is None else choose_representative(current, candidate)
+
+    paired = list(representatives.values())
     paired.sort(
         key=lambda p: (-p[1], SEVERITY_RANK[p[0].severity], p[0].confidence),
     )
     top = paired[:sample_size]
-    return [p[0] for p in top], [p[1] for p in top], model_id
+    return SemanticSelection(
+        [p[0] for p in top],
+        [p[1] for p in top],
+        model_id,
+        len(representatives),
+    )
 
 
 def build_semantic_sample_summary(
@@ -205,25 +303,33 @@ class HybridEngine:
 
         # Step 3: Gate — if no trigger-category finding, skip LLM
         trigger_findings = [f for f in findings if f.category in TRIGGER_CATEGORIES]
-        pool_for_count = select_top_trigger_findings(
-            findings, limit=SEMANTIC_CANDIDATE_POOL_SIZE
-        )
-        semantic_sample, inj_scores, prefilter_model = select_findings_for_semantic_llm(
+        selection = select_findings_for_semantic_llm(
             findings,
             prefilter=self.injection_prefilter,
             sample_size=SEMANTIC_SAMPLE_SIZE,
             pool_size=SEMANTIC_CANDIDATE_POOL_SIZE,
         )
-        if not semantic_sample:
-            return result
-
         sample_summary = build_semantic_sample_summary(
             trigger_findings,
-            semantic_sample,
-            candidate_pool_count=len(pool_for_count),
-            prefilter_model=prefilter_model,
-            injection_scores=inj_scores,
+            selection.findings,
+            candidate_pool_count=selection.candidate_pool_count,
+            prefilter_model=selection.prefilter_model,
+            injection_scores=selection.injection_scores,
         )
+
+        if selection.hard_block_verdict is not None:
+            result["decision"] = "block"
+            result["confidence"] = 1.0
+            result["explanation"] = GUARDRAIL_OVERRIDE_EXPLANATION
+            result["semantic_verdict"] = selection.hard_block_verdict
+            result["semantic_sample"] = sample_summary
+            return result
+
+        semantic_sample = selection.findings
+        inj_scores = selection.injection_scores
+        if not semantic_sample:
+            result["semantic_sample"] = sample_summary
+            return result
 
         if debug_log is not None:
             parts = []
@@ -248,6 +354,34 @@ class HybridEngine:
             return result
 
         # Step 6: Apply override logic
+        if verdict.explanation == GUARDRAIL_OVERRIDE_EXPLANATION:
+            result["decision"] = "block"
+            result["confidence"] = 1.0
+            result["explanation"] = GUARDRAIL_OVERRIDE_EXPLANATION
+            result["semantic_verdict"] = verdict
+            result["semantic_sample"] = sample_summary
+            return result
+
+        obfuscation_triggered = any(f.rule_id in OBFUSCATION_RULE_IDS for f in findings)
+        decoded_payload_confirmed = (
+            obfuscation_triggered
+            and verdict.decision == SemanticDecision.BLOCK
+            and verdict.decoded_malicious_payload
+        )
+
+        if decoded_payload_confirmed:
+            result["decision"] = "block"
+            result["confidence"] = 1.0
+            result["explanation"] = (
+                "[Critical] Malicious obfuscated payload detected and decoded. "
+                + verdict.explanation
+                + " | "
+                + result.get("explanation", "")
+            )
+            result["semantic_verdict"] = verdict
+            result["semantic_sample"] = sample_summary
+            return result
+
         if (
             verdict.decision == SemanticDecision.ALLOW
             and verdict.confidence_score >= self.semantic_analyzer.confidence_threshold

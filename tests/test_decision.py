@@ -1,6 +1,6 @@
 import unittest
-from ai_guard.models.schema import Finding, Category, Severity
-from ai_guard.engines.decision import DecisionEngine
+from agentlens.models.schema import Finding, Category, Severity
+from agentlens.engines.decision import DecisionEngine
 
 
 class TestDecisionEngine(unittest.TestCase):

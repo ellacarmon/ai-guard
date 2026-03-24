@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import zipfile
 
-from ai_guard.core.safe_extract import ExtractPathError, extract_tar_archive, extract_zip_archive
+from agentlens.core.safe_extract import ExtractPathError, extract_tar_archive, extract_zip_archive
 
 
 class TestSafeExtractTar(unittest.TestCase):
@@ -91,28 +91,28 @@ class TestSafeExtractZip(unittest.TestCase):
 
 class TestIngestionRegistry(unittest.TestCase):
     def test_npm_target(self):
-        from ai_guard.core.ingestion import Target, TargetType
+        from agentlens.core.ingestion import Target, TargetType
 
         t = Target("npm:lodash")
         self.assertEqual(t.type, TargetType.NPM_PACKAGE)
         self.assertEqual(t.registry_spec, "lodash")
 
     def test_npm_scoped(self):
-        from ai_guard.core.ingestion import Target, TargetType
+        from agentlens.core.ingestion import Target, TargetType
 
         t = Target("npm:@types/node")
         self.assertEqual(t.type, TargetType.NPM_PACKAGE)
         self.assertEqual(t.registry_spec, "@types/node")
 
     def test_pypi_target_strips_extras(self):
-        from ai_guard.core.ingestion import Target, TargetType
+        from agentlens.core.ingestion import Target, TargetType
 
         t = Target("pypi:requests[security]")
         self.assertEqual(t.type, TargetType.PYPI_PACKAGE)
         self.assertEqual(t.registry_spec, "requests")
 
     def test_empty_npm_unknown(self):
-        from ai_guard.core.ingestion import Target, TargetType
+        from agentlens.core.ingestion import Target, TargetType
 
         t = Target("npm:")
         self.assertEqual(t.type, TargetType.UNKNOWN)

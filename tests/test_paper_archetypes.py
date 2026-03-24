@@ -1,11 +1,11 @@
 import unittest
 
-from ai_guard.models.schema import (
+from agentlens.models.schema import (
     Finding, Category, Severity,
     ExploitabilityLevel,
 )
-from ai_guard.engines.scoring import ScoringEngine
-from ai_guard.engines.features import FeatureExtractor
+from agentlens.engines.scoring import ScoringEngine
+from agentlens.engines.features import FeatureExtractor
 
 
 def _finding(rule_id, category, severity, file_path="skill.py", confidence=1.0):
@@ -145,7 +145,7 @@ class TestBenignSkillNoFalsePositive(unittest.TestCase):
 
     def test_benign_findings_no_archetype(self):
         """Network access + filesystem access alone should not trigger archetypes."""
-        from ai_guard.models.schema import Category
+        from agentlens.models.schema import Category
         findings = [
             _finding("NET_ACCESS", Category.NETWORK_ACCESS, Severity.LOW),
             _finding("FS_ACCESS", Category.FILESYSTEM_ACCESS, Severity.MEDIUM),

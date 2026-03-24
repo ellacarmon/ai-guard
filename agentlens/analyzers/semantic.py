@@ -7,7 +7,8 @@ from typing import List, Optional
 import openai
 from pydantic import BaseModel, Field
 
-from ..models.schema import Finding
+from .guardrail import GUARDRAIL_OVERRIDE_EXPLANATION, PromptInjectionGuardrail
+from ..models.schema import Finding, Report
 
 
 class SemanticDecision(str, Enum):
@@ -20,6 +21,7 @@ class SemanticVerdict(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0)
     explanation: str
     flagged_pattern: str
+    decoded_malicious_payload: bool = False
 
 
 class SemanticAnalyzerConfigError(Exception):
@@ -34,6 +36,12 @@ SYSTEM_PROMPT = (
     "use of system-level APIs (e.g., local tooling, tests, sandboxed plugins) or a "
     "genuinely malicious posture (e.g., reverse shells, exfiltration, command injection). "
     "Use all samples to infer overall intent; do not judge a single line in isolation. "
+    "Identify any Base64-encoded strings in the snippets. Speculatively decode them during analysis, "
+    "even if the payload is partially obfuscated or embedded inside an import statement, exec(), or eval(). "
+    "If the decoded content attempts to access sensitive environment variables such as os.environ, "
+    "AWS_ACCESS_KEY, AWS_SECRET_ACCESS_KEY, TELEGRAM_TOKEN, API keys, or tokens, or attempts to establish "
+    "unauthorized network access such as requests.post, urllib requests, socket usage, or similar exfiltration "
+    "behavior, you must return decision=block, confidence_score=1.0, and set decoded_malicious_payload=true. "
     "Return a structured verdict with your decision (allow or block), a confidence score "
     "between 0.0 and 1.0, a concise explanation referencing the combined evidence, and "
     "the specific pattern(s) that drove your decision (comma-separated if several)."
@@ -56,6 +64,7 @@ class SemanticAnalyzer:
             )
         self.model = model
         self.confidence_threshold = confidence_threshold
+        self.guardrail = PromptInjectionGuardrail()
         self.client = openai.AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
@@ -81,6 +90,21 @@ class SemanticAnalyzer:
             return None
         try:
             blocks = [self._finding_block(f, i + 1) for i, f in enumerate(findings)]
+            guardrail_result = self.guardrail.inspect_documents(blocks)
+            if guardrail_result is not None and guardrail_result.attack_detected:
+                triggered = ", ".join(str(i + 1) for i in guardrail_result.triggered_documents)
+                flagged_pattern = (
+                    f"prompt_injection_guardrail(document#{triggered})"
+                    if triggered
+                    else "prompt_injection_guardrail"
+                )
+                return SemanticVerdict(
+                    decision=SemanticDecision.BLOCK,
+                    confidence_score=1.0,
+                    explanation=GUARDRAIL_OVERRIDE_EXPLANATION,
+                    flagged_pattern=flagged_pattern,
+                )
+
             user_prompt = (
                 f"The static analyzer sampled {len(findings)} high-priority finding(s). "
                 "Evaluate them together.\n\n" + "\n\n".join(blocks)
@@ -99,3 +123,6 @@ class SemanticAnalyzer:
 
     def analyze_snippet(self, finding: Finding) -> Optional[SemanticVerdict]:
         return self.analyze_snippets([finding])
+
+
+Report.model_rebuild(_types_namespace={"SemanticVerdict": SemanticVerdict})

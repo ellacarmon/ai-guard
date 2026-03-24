@@ -3,7 +3,7 @@ import subprocess
 import json
 
 def run_scan(target):
-    cmd = ["python", "-m", "ai_guard.cli", "scan", target, "--json"]
+    cmd = ["python", "-m", "agentlens.cli", "scan", target, "--json"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     try:
         data = json.loads(result.stdout)

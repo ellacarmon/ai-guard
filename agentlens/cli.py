@@ -31,7 +31,7 @@ EXIT_BLOCK = 2
 @click.option('--verbose', '-v', is_flag=True, help='Enable debug logging.')
 @click.pass_context
 def main(ctx, verbose):
-    """ai-guard: Pre-Installation AI Agent Tool Risk Analyzer"""
+    """AgentLens: Pre-Installation AI Agent Tool Risk Analyzer"""
     ctx.ensure_object(dict)
     ctx.obj['VERBOSE'] = verbose
 
@@ -48,7 +48,7 @@ def main(ctx, verbose):
 @click.option(
     '--semantic-prefilter',
     is_flag=True,
-    help='Rank semantic batch with a local prompt-injection model (requires ai-guard[injection-prefilter]).',
+    help='Rank semantic batch with a local prompt-injection model (requires agentlens[injection-prefilter]).',
 )
 @click.option(
     '--semantic-prefilter-model',
@@ -118,7 +118,12 @@ def scan(
         findings = []
 
         # Code analysis
-        py_files_total = sum(1 for _, _, fs in os.walk(staging_path) for f in fs if f.endswith('.py'))
+        py_files_total = sum(
+            1
+            for _, _, fs in os.walk(staging_path)
+            for f in fs
+            if os.path.splitext(f)[1].lower() in ASTCodeAnalyzer.PYTHON_EXTENSIONS
+        )
         script_files_total = sum(
             1
             for _, _, fs in os.walk(staging_path)
@@ -128,7 +133,7 @@ def scan(
         current_phase = "code-analysis"
         reporter.phase_start(
             "code-analysis",
-            f"Scanning {py_files_total} Python files and {script_files_total} JS/TS files...",
+            f"Scanning {py_files_total} Python/.pth files and {script_files_total} JS/TS files...",
         )
         code_processed = [0]
         code_total = py_files_total + script_files_total
@@ -169,6 +174,7 @@ def scan(
             except SemanticAnalyzerConfigError as e:
                 click.echo(click.style(f"Semantic analysis configuration error: {e}", fg="red"), err=True)
                 sys.exit(4)
+            semantic_analyzer.guardrail.warn_if_unconfigured()
 
             injection_prefilter = None
             if semantic_prefilter:
@@ -239,7 +245,7 @@ def scan(
         if json_output:
             click.echo(report.model_dump_json(indent=2))
         else:
-            click.echo(click.style("--- ai-guard Scan Report ---", bold=True, fg="blue"))
+            click.echo(click.style("--- AgentLens Scan Report ---", bold=True, fg="blue"))
             click.echo(f"Target: {target}")
             click.echo(f"Staged at: {staging_path}")
             click.echo(f"Total Files: {files_count}")

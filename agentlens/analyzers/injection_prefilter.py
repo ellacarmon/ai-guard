@@ -35,7 +35,7 @@ class PromptInjectionPrefilter:
         except ImportError as e:
             raise InjectionPrefilterImportError(
                 "Prompt-injection prefilter requires optional dependencies. "
-                'Install with: pip install "ai-guard[injection-prefilter]"'
+                'Install with: pip install "agentlens[injection-prefilter]"'
             ) from e
 
         if self._device is not None:

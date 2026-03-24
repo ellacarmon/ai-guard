@@ -122,10 +122,3 @@ class Report(BaseModel):
     exploitability: Optional[ExploitabilityResult] = None
     semantic_verdict: Optional["SemanticVerdict"] = None
     semantic_sample: Optional[SemanticSampleSummary] = None
-
-# Resolve forward reference for SemanticVerdict after it is defined in analyzers.semantic
-def _rebuild_report() -> None:
-    from ai_guard.analyzers.semantic import SemanticVerdict  # noqa: F401
-    Report.model_rebuild()
-
-_rebuild_report()

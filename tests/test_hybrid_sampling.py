@@ -1,13 +1,13 @@
 """Tests for semantic batching: top trigger findings sampled for the LLM."""
 
-from ai_guard.engines.hybrid import (
+from agentlens.engines.hybrid import (
     build_semantic_sample_summary,
     finding_text_for_injection_classifier,
     select_findings_for_semantic_llm,
     select_primary_finding,
     select_top_trigger_findings,
 )
-from ai_guard.models.schema import Category, Finding, Severity
+from agentlens.models.schema import Category, Finding, Severity
 
 
 def _f(rule_id: str, sev: Severity, conf: float = 0.5, cat: Category = Category.CODE_EXECUTION):

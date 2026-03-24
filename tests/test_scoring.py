@@ -1,6 +1,6 @@
 import unittest
-from ai_guard.models.schema import Finding, Category, Severity
-from ai_guard.engines.scoring import ScoringEngine
+from agentlens.models.schema import Finding, Category, Severity
+from agentlens.engines.scoring import ScoringEngine
 
 class TestScoringEngine(unittest.TestCase):
     def setUp(self):
