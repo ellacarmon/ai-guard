@@ -99,3 +99,69 @@ def test_semantic_prompt_requires_speculative_base64_decoding():
     assert "base64-encoded strings" in lowered
     assert "os.environ" in SYSTEM_PROMPT
     assert "requests.post" in SYSTEM_PROMPT
+
+
+def test_semantic_allow_overrides_high_only_static_block():
+    findings = [
+        Finding(
+            rule_id="JS_CHILD_PROCESS",
+            category=Category.CODE_EXECUTION,
+            severity=Severity.HIGH,
+            file_path="package/build/index.js",
+            line_number=12,
+            description="Detected child_process.exec() execution.",
+            evidence="exec(",
+            confidence=0.9,
+        ),
+        Finding(
+            rule_id="JS_OBFUSCATION_ATTEMPT",
+            category=Category.CODE_EXECUTION,
+            severity=Severity.HIGH,
+            file_path="package/build/index.js",
+            line_number=42,
+            description="Detected dense hex/unicode escape sequences consistent with obfuscation.",
+            evidence="\\x61\\x62\\x63",
+            confidence=0.9,
+        ),
+    ]
+    verdict = SemanticVerdict(
+        decision=SemanticDecision.ALLOW,
+        confidence_score=0.61,
+        explanation="This is a legitimate CLI utility that wraps local OS commands and does not decode hidden payloads, exfiltrate secrets, or bypass sandbox boundaries.",
+        flagged_pattern="child_process wrapper in build output",
+        decoded_malicious_payload=False,
+    )
+
+    engine = HybridEngine(_StubSemanticAnalyzer(verdict))
+    result = engine.run(findings, context={})
+
+    assert result["decision"] == "allow"
+    assert result["risk_level"] == "MEDIUM"
+    assert "[Semantic Override]" in result["explanation"]
+
+
+def test_semantic_allow_does_not_override_critical_static_trigger():
+    findings = [
+        Finding(
+            rule_id="JS_DYNAMIC_EVAL",
+            category=Category.CODE_EXECUTION,
+            severity=Severity.CRITICAL,
+            file_path="index.js",
+            line_number=1,
+            description="Detected dynamic JavaScript execution via eval() or Function().",
+            evidence="eval(",
+            confidence=0.95,
+        ),
+    ]
+    verdict = SemanticVerdict(
+        decision=SemanticDecision.ALLOW,
+        confidence_score=0.99,
+        explanation="This looks intentional and controlled, but the static finding is still critical.",
+        flagged_pattern="eval",
+        decoded_malicious_payload=False,
+    )
+
+    engine = HybridEngine(_StubSemanticAnalyzer(verdict))
+    result = engine.run(findings, context={})
+
+    assert result["decision"] != "allow"

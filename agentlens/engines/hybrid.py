@@ -35,6 +35,9 @@ SEMANTIC_CANDIDATE_POOL_SIZE = 15
 LOCAL_INJECTION_BLOCK_THRESHOLD = 0.90
 """If any local prompt-injection score meets this threshold, skip the cloud LLM and block."""
 
+SEMANTIC_ALLOW_OVERRIDE_CONFIDENCE = 0.60
+"""Confidence required for semantic ALLOW to override non-critical static blocks."""
+
 OBFUSCATION_RULE_IDS = {
     "CODE_OBFUSCATION_DETECTED",
     "JS_OBFUSCATION_ATTEMPT",
@@ -48,6 +51,8 @@ SEVERITY_RANK = {
     Severity.MEDIUM: 2,
     Severity.LOW: 1,
 }
+
+ALLOW_OVERRIDE_MIN_EXPLANATION_WORDS = 8
 
 
 @dataclass(frozen=True)
@@ -277,6 +282,18 @@ def select_primary_finding(findings: List[Finding]) -> Optional[Finding]:
     return batch[0] if batch else None
 
 
+def _has_critical_trigger_finding(findings: List[Finding]) -> bool:
+    return any(
+        f.category in TRIGGER_CATEGORIES and f.severity == Severity.CRITICAL
+        for f in findings
+    )
+
+
+def _has_detailed_semantic_explanation(verdict: SemanticVerdict) -> bool:
+    explanation = (verdict.explanation or "").strip()
+    return len(explanation.split()) >= ALLOW_OVERRIDE_MIN_EXPLANATION_WORDS
+
+
 class HybridEngine:
     def __init__(
         self,
@@ -369,6 +386,7 @@ class HybridEngine:
             and verdict.decision == SemanticDecision.BLOCK
             and verdict.decoded_malicious_payload
         )
+        has_critical_static_trigger = _has_critical_trigger_finding(findings)
 
         if decoded_payload_confirmed:
             result["decision"] = "block"
@@ -385,9 +403,12 @@ class HybridEngine:
 
         if (
             verdict.decision == SemanticDecision.ALLOW
-            and verdict.confidence_score >= self.semantic_analyzer.confidence_threshold
+            and verdict.confidence_score > SEMANTIC_ALLOW_OVERRIDE_CONFIDENCE
+            and _has_detailed_semantic_explanation(verdict)
+            and not has_critical_static_trigger
         ):
             result["decision"] = "allow"
+            result["risk_level"] = "MEDIUM"
             result["recommendation"] = "Safe to install — initial risks were semantically cleared."
             result["explanation"] = (
                 "[Semantic Override] " + verdict.explanation + " | " + result.get("explanation", "")

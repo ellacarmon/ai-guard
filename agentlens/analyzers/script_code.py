@@ -14,16 +14,26 @@ class ScriptCodeAnalyzer(BaseAnalyzer):
     CHILD_PROCESS_CALLS = ("exec", "execSync", "spawn", "spawnSync", "fork")
     DIRECT_EVAL_PATTERN = re.compile(r"\b(?:eval|Function)\s*\(")
     STRING_TIMER_PATTERN = re.compile(r"\b(?:setTimeout|setInterval)\s*\(\s*(['\"`])")
+    BUFFER_BASE64_PATTERN = re.compile(
+        r"\bBuffer\s*\.\s*from\s*\([^)]*?,\s*(['\"])base64\1\s*\)",
+        re.MULTILINE | re.DOTALL,
+    )
+    DYNAMIC_DECODE_EXEC_PATTERN = re.compile(
+        r"\b(?:eval|Function|setTimeout|setInterval)\s*\([^)]{0,200}\b(?:atob|btoa)\s*\("
+        r"|\b(?:atob|btoa)\s*\([^)]{0,200}\b(?:eval|Function|setTimeout|setInterval)\s*\(",
+        re.MULTILINE | re.DOTALL,
+    )
+    STRING_FROM_CHAR_CODE_PATTERN = re.compile(r"\bString\s*\.\s*fromCharCode\s*\(")
     CHILD_PROCESS_IMPORT_PATTERN = re.compile(
         r"(?:require\(\s*['\"](?:node:)?child_process['\"]\s*\)|from\s+['\"](?:node:)?child_process['\"])",
         re.MULTILINE,
     )
-    OBFUSCATION_PATTERN = re.compile(
-        r"\b(?:Buffer\s*\.\s*from|atob|btoa|String\s*\.\s*fromCharCode)\s*\("
-        r"|(?:\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\u\{[0-9A-Fa-f]{1,6}\})"
+    DENSE_ESCAPE_PATTERN = re.compile(
+        r"(?:\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\u\{[0-9A-Fa-f]{1,6}\})"
         r"(?:.{0,24}?(?:\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\u\{[0-9A-Fa-f]{1,6}\})){2,}",
         re.MULTILINE | re.DOTALL,
     )
+    MINIFIED_DIRECTORY_MARKERS = {"build", "dist"}
 
     def analyze(
         self,
@@ -146,24 +156,57 @@ class ScriptCodeAnalyzer(BaseAnalyzer):
 
     def _scan_obfuscation(self, relative_path: str, content: str) -> List[Finding]:
         findings: List[Finding] = []
-        for match in self.OBFUSCATION_PATTERN.finditer(content):
-            evidence = match.group(0)
-            findings.append(
-                Finding(
-                    rule_id="JS_OBFUSCATION_ATTEMPT",
-                    category=Category.CODE_EXECUTION,
-                    severity=Severity.HIGH,
-                    file_path=relative_path,
-                    line_number=self._line_number(content, match.start()),
-                    description=(
-                        "Detected JavaScript obfuscation or dynamic decoding primitives "
-                        "(for example base64 decoding, String.fromCharCode, or dense hex/unicode escapes)."
-                    ),
-                    evidence=evidence[:240],
-                    confidence=0.9,
+        explicit_patterns = (
+            (
+                self.BUFFER_BASE64_PATTERN,
+                "Detected JavaScript base64 decoding via Buffer.from(..., 'base64').",
+            ),
+            (
+                self.DYNAMIC_DECODE_EXEC_PATTERN,
+                "Detected atob()/btoa() used in a dynamic execution context.",
+            ),
+        )
+        heuristic_patterns = (
+            (
+                self.STRING_FROM_CHAR_CODE_PATTERN,
+                "Detected String.fromCharCode() usage often associated with obfuscated payload construction.",
+            ),
+            (
+                self.DENSE_ESCAPE_PATTERN,
+                "Detected dense hex/unicode escape sequences consistent with obfuscation.",
+            ),
+        )
+        patterns = explicit_patterns
+        if not self._is_likely_minified_asset(relative_path):
+            patterns += heuristic_patterns
+
+        for pattern, description in patterns:
+            for match in pattern.finditer(content):
+                evidence = match.group(0)
+                findings.append(
+                    Finding(
+                        rule_id="JS_OBFUSCATION_ATTEMPT",
+                        category=Category.CODE_EXECUTION,
+                        severity=Severity.HIGH,
+                        file_path=relative_path,
+                        line_number=self._line_number(content, match.start()),
+                        description=description,
+                        evidence=evidence[:240],
+                        confidence=0.9,
+                    )
                 )
-            )
         return findings
+
+    @classmethod
+    def _is_likely_minified_asset(cls, relative_path: str) -> bool:
+        normalized = relative_path.replace("\\", "/").lower()
+        filename = normalized.rsplit("/", 1)[-1]
+        if filename.endswith(".min.js") or filename.endswith(".min.cjs") or filename.endswith(".min.mjs"):
+            return True
+        if filename.endswith(".cjs") or filename.endswith(".mjs"):
+            return True
+        parts = [part for part in normalized.split("/")[:-1] if part]
+        return any(part in cls.MINIFIED_DIRECTORY_MARKERS for part in parts)
 
     @staticmethod
     def _line_number(content: str, offset: int) -> int:

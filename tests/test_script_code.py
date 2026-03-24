@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 import unittest
@@ -61,6 +62,70 @@ class TestScriptCodeAnalyzer(unittest.TestCase):
 
         self.assertTrue(obfuscation)
         self.assertTrue(all(f.severity.value == "high" for f in obfuscation))
+
+    def test_does_not_flag_generic_buffer_from_usage(self):
+        path = f"{self.tmpdir}/buffer.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("const data = Buffer.from('hello world');\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertFalse(obfuscation)
+
+    def test_atob_without_dynamic_execution_context_is_not_flagged(self):
+        path = f"{self.tmpdir}/decode.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("const decoded = atob(payload);\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertFalse(obfuscation)
+
+    def test_atob_inside_eval_is_flagged(self):
+        path = f"{self.tmpdir}/dynamic.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("eval(atob(payload));\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertTrue(obfuscation)
+
+    def test_build_artifact_string_from_char_code_is_not_treated_as_obfuscation(self):
+        build_dir = f"{self.tmpdir}/package/build"
+        os.makedirs(build_dir, exist_ok=True)
+        path = f"{build_dir}/index.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("const text = String.fromCharCode(122, 120);\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertFalse(obfuscation)
+
+    def test_cjs_bundle_dense_escapes_are_not_treated_as_obfuscation(self):
+        path = f"{self.tmpdir}/bundle.cjs"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("const text = '\\x61\\x62\\x63\\x64';\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertFalse(obfuscation)
+
+    def test_build_artifact_explicit_base64_decode_is_still_flagged(self):
+        build_dir = f"{self.tmpdir}/dist"
+        os.makedirs(build_dir, exist_ok=True)
+        path = f"{build_dir}/index.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("const stage = Buffer.from(payload, 'base64').toString('utf8');\n")
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertTrue(obfuscation)
 
 
 if __name__ == "__main__":
