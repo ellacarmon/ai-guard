@@ -48,6 +48,20 @@ class TestScriptCodeAnalyzer(unittest.TestCase):
         self.assertEqual(result["features"]["execution_type"], "unreviewed_script_runtime")
         self.assertEqual(result["decision"], "warn")
 
+    def test_detects_js_obfuscation_and_dynamic_decoding(self):
+        path = f"{self.tmpdir}/obfuscated.js"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "const stage = Buffer.from(payload, 'base64').toString('utf8');\n"
+                "const hidden = '\\x65\\x76\\x61\\x6c';\n"
+            )
+
+        findings = ScriptCodeAnalyzer().analyze(self.tmpdir)
+        obfuscation = [f for f in findings if f.rule_id == "JS_OBFUSCATION_ATTEMPT"]
+
+        self.assertTrue(obfuscation)
+        self.assertTrue(all(f.severity.value == "high" for f in obfuscation))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,6 @@ from typing import List, Optional
 import openai
 from pydantic import BaseModel, Field
 
-from .guardrail import GUARDRAIL_OVERRIDE_EXPLANATION, PromptInjectionGuardrail
 from ..models.schema import Finding, Report
 
 
@@ -64,7 +63,6 @@ class SemanticAnalyzer:
             )
         self.model = model
         self.confidence_threshold = confidence_threshold
-        self.guardrail = PromptInjectionGuardrail()
         self.client = openai.AzureOpenAI(
             api_key=api_key,
             azure_endpoint=endpoint,
@@ -90,21 +88,6 @@ class SemanticAnalyzer:
             return None
         try:
             blocks = [self._finding_block(f, i + 1) for i, f in enumerate(findings)]
-            guardrail_result = self.guardrail.inspect_documents(blocks)
-            if guardrail_result is not None and guardrail_result.attack_detected:
-                triggered = ", ".join(str(i + 1) for i in guardrail_result.triggered_documents)
-                flagged_pattern = (
-                    f"prompt_injection_guardrail(document#{triggered})"
-                    if triggered
-                    else "prompt_injection_guardrail"
-                )
-                return SemanticVerdict(
-                    decision=SemanticDecision.BLOCK,
-                    confidence_score=1.0,
-                    explanation=GUARDRAIL_OVERRIDE_EXPLANATION,
-                    flagged_pattern=flagged_pattern,
-                )
-
             user_prompt = (
                 f"The static analyzer sampled {len(findings)} high-priority finding(s). "
                 "Evaluate them together.\n\n" + "\n\n".join(blocks)

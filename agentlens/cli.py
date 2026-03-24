@@ -174,12 +174,12 @@ def scan(
             except SemanticAnalyzerConfigError as e:
                 click.echo(click.style(f"Semantic analysis configuration error: {e}", fg="red"), err=True)
                 sys.exit(4)
-            semantic_analyzer.guardrail.warn_if_unconfigured()
 
             injection_prefilter = None
             if semantic_prefilter:
                 from .analyzers.injection_prefilter import (
                     InjectionPrefilterImportError,
+                    InjectionPrefilterSecurityError,
                     PromptInjectionPrefilter,
                 )
                 reporter.phase_start(
@@ -189,7 +189,7 @@ def scan(
                 injection_prefilter = PromptInjectionPrefilter(model_id=semantic_prefilter_model)
                 try:
                     injection_prefilter.warmup()
-                except InjectionPrefilterImportError as e:
+                except (InjectionPrefilterImportError, InjectionPrefilterSecurityError) as e:
                     click.echo(click.style(str(e), fg="red"), err=True)
                     sys.exit(4)
                 reporter.phase_end("injection-prefilter")

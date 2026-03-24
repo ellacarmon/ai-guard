@@ -66,7 +66,12 @@ class FeatureExtractor:
         },
         "has_obfuscation": {
             "type": "bool",
-            "match_rules": ["SKILL_OBFUSCATED_CODE", "SC3", "CODE_OBFUSCATION_DETECTED"],
+            "match_rules": [
+                "SKILL_OBFUSCATED_CODE",
+                "SC3",
+                "CODE_OBFUSCATION_DETECTED",
+                "JS_OBFUSCATION_ATTEMPT",
+            ],
         },
     }
 

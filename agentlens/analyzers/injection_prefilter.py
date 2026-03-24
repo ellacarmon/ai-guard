@@ -13,6 +13,10 @@ class InjectionPrefilterImportError(ImportError):
     """Raised when transformers/torch are not installed."""
 
 
+class InjectionPrefilterSecurityError(RuntimeError):
+    """Raised when the configured model cannot be loaded with required security settings."""
+
+
 class PromptInjectionPrefilter:
     """Scores text snippets with a Hugging Face sequence-classification model (attack probability)."""
 
@@ -31,7 +35,11 @@ class PromptInjectionPrefilter:
             return self._pipe
         try:
             import torch
-            from transformers import pipeline
+            from transformers import (
+                AutoModelForSequenceClassification,
+                AutoTokenizer,
+                pipeline,
+            )
         except ImportError as e:
             raise InjectionPrefilterImportError(
                 "Prompt-injection prefilter requires optional dependencies. "
@@ -52,13 +60,30 @@ class PromptInjectionPrefilter:
                 except ValueError:
                     dev = -1
 
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_id,
+                trust_remote_code=False,
+            )
+            model = AutoModelForSequenceClassification.from_pretrained(
+                self.model_id,
+                use_safetensors=True,
+                trust_remote_code=False,
+            )
+        except Exception as e:
+            raise InjectionPrefilterSecurityError(
+                f"Refusing to load prompt-injection model '{self.model_id}' without SafeTensors. "
+                "The model repository must provide SafeTensors weights and cannot require remote code execution."
+            ) from e
+
         self._pipe = pipeline(
             "text-classification",
-            model=self.model_id,
-            tokenizer=self.model_id,
+            model=model,
+            tokenizer=tokenizer,
             device=dev,
             truncation=True,
             max_length=256,
+            trust_remote_code=False,
         )
         return self._pipe
 

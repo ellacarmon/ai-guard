@@ -18,6 +18,12 @@ class ScriptCodeAnalyzer(BaseAnalyzer):
         r"(?:require\(\s*['\"](?:node:)?child_process['\"]\s*\)|from\s+['\"](?:node:)?child_process['\"])",
         re.MULTILINE,
     )
+    OBFUSCATION_PATTERN = re.compile(
+        r"\b(?:Buffer\s*\.\s*from|atob|btoa|String\s*\.\s*fromCharCode)\s*\("
+        r"|(?:\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\u\{[0-9A-Fa-f]{1,6}\})"
+        r"(?:.{0,24}?(?:\\x[0-9A-Fa-f]{2}|\\u[0-9A-Fa-f]{4}|\\u\{[0-9A-Fa-f]{1,6}\})){2,}",
+        re.MULTILINE | re.DOTALL,
+    )
 
     def analyze(
         self,
@@ -49,6 +55,7 @@ class ScriptCodeAnalyzer(BaseAnalyzer):
                 new_findings.extend(self._scan_eval(relative_path, content))
                 new_findings.extend(self._scan_string_timers(relative_path, content))
                 new_findings.extend(self._scan_child_process(relative_path, content))
+                new_findings.extend(self._scan_obfuscation(relative_path, content))
 
             findings.extend(new_findings)
             if progress_callback is not None:
@@ -135,6 +142,27 @@ class ScriptCodeAnalyzer(BaseAnalyzer):
                             confidence=0.9,
                         )
                     )
+        return findings
+
+    def _scan_obfuscation(self, relative_path: str, content: str) -> List[Finding]:
+        findings: List[Finding] = []
+        for match in self.OBFUSCATION_PATTERN.finditer(content):
+            evidence = match.group(0)
+            findings.append(
+                Finding(
+                    rule_id="JS_OBFUSCATION_ATTEMPT",
+                    category=Category.CODE_EXECUTION,
+                    severity=Severity.HIGH,
+                    file_path=relative_path,
+                    line_number=self._line_number(content, match.start()),
+                    description=(
+                        "Detected JavaScript obfuscation or dynamic decoding primitives "
+                        "(for example base64 decoding, String.fromCharCode, or dense hex/unicode escapes)."
+                    ),
+                    evidence=evidence[:240],
+                    confidence=0.9,
+                )
+            )
         return findings
 
     @staticmethod
