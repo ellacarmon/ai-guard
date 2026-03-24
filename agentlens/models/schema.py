@@ -105,6 +105,11 @@ class DecisionResult(BaseModel):
     exploitability: Optional[ExploitabilityResult] = None
 
 class Report(BaseModel):
+    target: str
+    target_type: Optional[str] = None
+    package_name: Optional[str] = None
+    requested_package_version: Optional[str] = None
+    package_version: Optional[str] = None
     risk_score: float = Field(default=0.0, ge=0.0, le=10.0)
     risk_level: str
     recommendation: str

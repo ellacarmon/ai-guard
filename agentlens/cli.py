@@ -80,7 +80,7 @@ def scan(
         click.echo(
             click.style(
                 f"Error: Unknown target format '{target}'. "
-                "Use a local path, a https://github.com/... URL, npm:<package>, or pypi:<package>.",
+                "Use a local path, a https://github.com/... URL, npm:<package>[@version], or pypi:<package>[extras][==version].",
                 fg="red",
             ),
             err=True,
@@ -223,6 +223,11 @@ def scan(
 
         # Build Report
         report = Report(
+            target=target,
+            target_type=target_obj.type.value,
+            package_name=fetcher.resolved_package_name,
+            requested_package_version=target_obj.requested_version,
+            package_version=fetcher.resolved_package_version,
             risk_score=result["risk_score"],
             risk_level=result["risk_level"],
             recommendation=result["recommendation"],
@@ -246,7 +251,17 @@ def scan(
             click.echo(report.model_dump_json(indent=2))
         else:
             click.echo(click.style("--- AgentLens Scan Report ---", bold=True, fg="blue"))
-            click.echo(f"Target: {target}")
+            click.echo(f"Target: {report.target}")
+            if report.package_name and report.requested_package_version and report.package_version:
+                click.echo(
+                    f"Resolved Package: {report.package_name}"
+                    f" requested={report.requested_package_version}"
+                    f" resolved={report.package_version}"
+                )
+            elif report.package_name and report.package_version:
+                click.echo(f"Resolved Package: {report.package_name}@{report.package_version}")
+            elif report.package_name:
+                click.echo(f"Resolved Package: {report.package_name}")
             click.echo(f"Staged at: {staging_path}")
             click.echo(f"Total Files: {files_count}")
             click.echo(f"Risk Score: {report.risk_score}/10.0")

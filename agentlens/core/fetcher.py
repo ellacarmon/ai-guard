@@ -44,6 +44,8 @@ class Fetcher:
         self.target = target
         self.verbose = verbose
         self._temp_dir = None
+        self.resolved_package_name: str | None = None
+        self.resolved_package_version: str | None = None
 
     def fetch(self) -> str:
         """Returns the absolute path to the staged contents."""
@@ -83,6 +85,7 @@ class Fetcher:
         if not name:
             raise ValueError("npm package name missing")
 
+        self.resolved_package_name = name
         self._temp_dir = tempfile.TemporaryDirectory(prefix="agentlens_")
         staging_path = self._temp_dir.name
         encoded = quote(name, safe="")
@@ -101,13 +104,18 @@ class Fetcher:
                 )
             raise
 
-        latest = (meta.get("dist-tags") or {}).get("latest")
-        if not latest:
-            raise ValueError(f"npm package {name!r} has no dist-tags.latest")
+        requested_version = self.target.requested_version
+        if requested_version:
+            chosen_version = requested_version
+        else:
+            chosen_version = (meta.get("dist-tags") or {}).get("latest")
+            if not chosen_version:
+                raise ValueError(f"npm package {name!r} has no dist-tags.latest")
+        self.resolved_package_version = chosen_version
 
-        ver_obj = (meta.get("versions") or {}).get(latest)
+        ver_obj = (meta.get("versions") or {}).get(chosen_version)
         if not ver_obj:
-            raise ValueError(f"npm package {name!r}: missing version {latest!r}")
+            raise ValueError(f"npm package {name!r}: missing version {chosen_version!r}")
 
         tarball_url = (ver_obj.get("dist") or {}).get("tarball")
         if not tarball_url:
@@ -115,7 +123,7 @@ class Fetcher:
 
         artifact = os.path.join(staging_path, "package.tgz")
         if self.verbose:
-            click.echo(f"VERBOSE: Downloading npm tarball for {name}@{latest}", err=True)
+            click.echo(f"VERBOSE: Downloading npm tarball for {name}@{chosen_version}", err=True)
         _http_download(tarball_url, artifact)
         extract_tar_archive(artifact, staging_path)
         try:
@@ -129,10 +137,16 @@ class Fetcher:
         if not name:
             raise ValueError("PyPI package name missing")
 
+        self.resolved_package_name = name
         self._temp_dir = tempfile.TemporaryDirectory(prefix="agentlens_")
         staging_path = self._temp_dir.name
         encoded = quote(name, safe="")
-        meta_url = f"https://pypi.org/pypi/{encoded}/json"
+        requested_version = self.target.requested_version
+        if requested_version:
+            encoded_version = quote(requested_version, safe="")
+            meta_url = f"https://pypi.org/pypi/{encoded}/{encoded_version}/json"
+        else:
+            meta_url = f"https://pypi.org/pypi/{encoded}/json"
 
         if self.verbose:
             click.echo(f"VERBOSE: Fetching PyPI metadata {meta_url}", err=True)
@@ -146,6 +160,11 @@ class Fetcher:
                     err=True,
                 )
             raise
+
+        info = meta.get("info") or {}
+        version = info.get("version")
+        if isinstance(version, str) and version.strip():
+            self.resolved_package_version = version.strip()
 
         urls = meta.get("urls") or []
         sdist_tgz = [

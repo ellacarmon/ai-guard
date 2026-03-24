@@ -103,6 +103,23 @@ class TestIngestionRegistry(unittest.TestCase):
         t = Target("npm:@types/node")
         self.assertEqual(t.type, TargetType.NPM_PACKAGE)
         self.assertEqual(t.registry_spec, "@types/node")
+        self.assertIsNone(t.requested_version)
+
+    def test_npm_versioned_target(self):
+        from agentlens.core.ingestion import Target, TargetType
+
+        t = Target("npm:lodash@4.17.21")
+        self.assertEqual(t.type, TargetType.NPM_PACKAGE)
+        self.assertEqual(t.registry_spec, "lodash")
+        self.assertEqual(t.requested_version, "4.17.21")
+
+    def test_npm_scoped_versioned_target(self):
+        from agentlens.core.ingestion import Target, TargetType
+
+        t = Target("npm:@types/node@20.17.6")
+        self.assertEqual(t.type, TargetType.NPM_PACKAGE)
+        self.assertEqual(t.registry_spec, "@types/node")
+        self.assertEqual(t.requested_version, "20.17.6")
 
     def test_pypi_target_strips_extras(self):
         from agentlens.core.ingestion import Target, TargetType
@@ -110,6 +127,23 @@ class TestIngestionRegistry(unittest.TestCase):
         t = Target("pypi:requests[security]")
         self.assertEqual(t.type, TargetType.PYPI_PACKAGE)
         self.assertEqual(t.registry_spec, "requests")
+        self.assertIsNone(t.requested_version)
+
+    def test_pypi_versioned_target(self):
+        from agentlens.core.ingestion import Target, TargetType
+
+        t = Target("pypi:requests==2.31.0")
+        self.assertEqual(t.type, TargetType.PYPI_PACKAGE)
+        self.assertEqual(t.registry_spec, "requests")
+        self.assertEqual(t.requested_version, "2.31.0")
+
+    def test_pypi_versioned_target_with_extras(self):
+        from agentlens.core.ingestion import Target, TargetType
+
+        t = Target("pypi:requests[security]==2.31.0")
+        self.assertEqual(t.type, TargetType.PYPI_PACKAGE)
+        self.assertEqual(t.registry_spec, "requests")
+        self.assertEqual(t.requested_version, "2.31.0")
 
     def test_empty_npm_unknown(self):
         from agentlens.core.ingestion import Target, TargetType
