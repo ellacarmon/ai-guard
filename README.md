@@ -81,6 +81,26 @@ To enforce custom strict policies, provide a custom YAML policy template:
 agentlens scan ./local_skill_folder --policy custom_policy.yml
 ```
 
+### GitHub Actions example: scan pull requests
+
+This repository includes an example workflow at `.github/workflows/agentlens-pr-scan.yml` that scans pull requests on `opened`, `synchronize`, `reopened`, and `ready_for_review`.
+
+It checks out the PR branch, installs `agentlens-scanner`, runs a repository scan with JSON output, and uploads the report as a workflow artifact:
+
+```yaml
+- name: Scan repository contents
+  id: agentlens
+  shell: bash
+  run: |
+    set +e
+    agentlens scan . --json > agentlens-report.json
+    exit_code=$?
+    echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+    exit 0
+```
+
+The example treats `BLOCK` as a failing check and leaves `WARN` visible in the workflow summary without failing the job. If you want warnings to block merges too, change the final enforcement step to fail on exit code `1` as well.
+
 ## LLM Semantic Analysis (Azure AI Foundry)
 
 The static analysis engine is fast and deterministic, but can produce false positives — for example, flagging a legitimate `subprocess` call used for a local math calculation the same way it flags a reverse shell. The semantic analysis layer adds a second-opinion pass that uses an LLM to evaluate the true intent of the flagged code snippet.

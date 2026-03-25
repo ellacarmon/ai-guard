@@ -1,0 +1,77 @@
+name: AgentLens PR Scan
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  scan-pull-request:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install AgentLens
+        run: python -m pip install agentlens-scanner
+
+      - name: Scan repository contents
+        id: agentlens
+        shell: bash
+        run: |
+          set +e
+          agentlens scan . --json > agentlens-report.json
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          case "$exit_code" in
+            0) echo "decision=allow" >> "$GITHUB_OUTPUT" ;;
+            1) echo "decision=warn" >> "$GITHUB_OUTPUT" ;;
+            2) echo "decision=block" >> "$GITHUB_OUTPUT" ;;
+            *) echo "decision=error" >> "$GITHUB_OUTPUT" ;;
+          esac
+          exit 0
+
+      - name: Upload AgentLens report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentlens-pr-report
+          path: agentlens-report.json
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AgentLens PR Scan"
+            echo
+            echo "- Decision: \`${{ steps.agentlens.outputs.decision }}\`"
+            echo "- Exit code: \`${{ steps.agentlens.outputs.exit_code }}\`"
+            echo "- Artifact: \`agentlens-pr-report\`"
+            echo
+            echo "AgentLens returns \`0\` for ALLOW, \`1\` for WARN, and \`2\` for BLOCK."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on BLOCK
+        if: steps.agentlens.outputs.exit_code == '2'
+        run: |
+          echo "AgentLens blocked this pull request. Review the uploaded report artifact for details."
+          exit 1
+
+      - name: Surface WARN result
+        if: steps.agentlens.outputs.exit_code == '1'
+        run: |
+          echo "AgentLens reported WARN for this pull request. Review the uploaded report artifact before merging."
