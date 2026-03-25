@@ -1,0 +1,165 @@
+name: AgentLens AI Requirements Scan
+
+on:
+  pull_request:
+    paths:
+      - "**/requirements*.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan-ai-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install AgentLens and parser dependency
+        run: python -m pip install agentlens-scanner packaging
+
+      - name: Collect pinned AI packages from requirements files
+        id: collect
+        shell: bash
+        run: |
+          python <<'PY'
+          import pathlib
+          import re
+          from packaging.requirements import Requirement
+
+          patterns = [
+              r"^openai$",
+              r"^anthropic$",
+              r"^langchain(?:[-_].+)?$",
+              r"^llama-index(?:[-_].+)?$",
+              r"^autogen(?:[-_].+)?$",
+              r"^ag2(?:[-_].+)?$",
+              r"^crewai(?:[-_].+)?$",
+              r"^litellm$",
+              r"^transformers$",
+              r"^sentence-transformers$",
+              r"^haystack(?:[-_].+)?$",
+              r"^google-generativeai$",
+              r"^google-genai$",
+              r"^instructor$",
+              r"^pydantic-ai(?:[-_].+)?$",
+              r"^dspy(?:[-_].+)?$",
+              r"^smolagents$",
+              r"^guidance$",
+          ]
+          ai_package_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
+
+          def is_ai_package(name: str) -> bool:
+              normalized = name.lower().replace("_", "-")
+              return any(pattern.match(normalized) for pattern in ai_package_patterns)
+
+          targets = []
+          requirement_files = sorted(pathlib.Path(".").glob("**/requirements*.txt"))
+          for req_file in requirement_files:
+              for raw_line in req_file.read_text().splitlines():
+                  line = raw_line.strip()
+                  if not line or line.startswith("#") or line.startswith("-"):
+                      continue
+                  try:
+                      req = Requirement(line)
+                  except Exception:
+                      continue
+
+                  pinned_versions = [
+                      spec.version
+                      for spec in req.specifier
+                      if spec.operator == "=="
+                  ]
+                  if len(pinned_versions) != 1:
+                      continue
+                  if not is_ai_package(req.name):
+                      continue
+
+                  target = f"pypi:{req.name}=={pinned_versions[0]}"
+                  targets.append((str(req_file), target))
+
+          output = pathlib.Path("agentlens-ai-targets.txt")
+          output.write_text(
+              "".join(f"{source_file}\t{target}\n" for source_file, target in targets)
+          )
+          print(f"matched_targets={len(targets)}")
+          PY
+
+          echo "count=$(wc -l < agentlens-ai-targets.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Scan pinned AI package versions
+        id: scan
+        if: steps.collect.outputs.count != '0'
+        shell: bash
+        run: |
+          mkdir -p agentlens-requirements-reports
+          overall_exit=0
+
+          while IFS=$'\t' read -r source_file target; do
+            [ -n "$target" ] || continue
+            safe_name=$(printf '%s' "$target" | tr ':=/@[]' '_' | tr -cd '[:alnum:]_.-')
+
+            set +e
+            agentlens scan "$target" --json > "agentlens-requirements-reports/${safe_name}.json"
+            exit_code=$?
+            set -e
+
+            printf '%s\t%s\t%s\n' "$source_file" "$target" "$exit_code" >> agentlens-requirements-results.tsv
+
+            if [ "$exit_code" -gt "$overall_exit" ]; then
+              overall_exit="$exit_code"
+            fi
+          done < agentlens-ai-targets.txt
+
+          echo "exit_code=$overall_exit" >> "$GITHUB_OUTPUT"
+          case "$overall_exit" in
+            0) echo "decision=allow" >> "$GITHUB_OUTPUT" ;;
+            1) echo "decision=warn" >> "$GITHUB_OUTPUT" ;;
+            2) echo "decision=block" >> "$GITHUB_OUTPUT" ;;
+            *) echo "decision=error" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: No pinned AI packages found
+        if: steps.collect.outputs.count == '0'
+        run: echo "No pinned AI-related packages were found in requirements*.txt files."
+
+      - name: Upload dependency scan artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentlens-ai-requirements-report
+          path: |
+            agentlens-ai-targets.txt
+            agentlens-requirements-results.tsv
+            agentlens-requirements-reports/
+          if-no-files-found: warn
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AgentLens AI Requirements Scan"
+            echo
+            echo "- Matched pinned AI packages: \`${{ steps.collect.outputs.count }}\`"
+            if [ "${{ steps.collect.outputs.count }}" != "0" ]; then
+              echo "- Decision: \`${{ steps.scan.outputs.decision }}\`"
+              echo "- Exit code: \`${{ steps.scan.outputs.exit_code }}\`"
+            fi
+            echo "- Artifact: \`agentlens-ai-requirements-report\`"
+            echo
+            echo "This example scans only AI-related packages with explicit \`==\` pins from \`requirements*.txt\` files."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on BLOCK
+        if: steps.scan.outputs.exit_code == '2'
+        run: |
+          echo "AgentLens blocked at least one pinned AI dependency. Review the uploaded artifacts for details."
+          exit 1

@@ -1,0 +1,98 @@
+name: Publish To PyPI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build and test dependencies
+        run: python -m pip install --upgrade build twine pytest
+
+      - name: Derive publish version
+        id: version
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          import pathlib
+          import re
+          import tomllib
+
+          pyproject_path = pathlib.Path("pyproject.toml")
+          original = pyproject_path.read_text(encoding="utf-8")
+          data = tomllib.loads(original)
+          base_version = data["project"]["version"]
+          parts = base_version.split(".")
+          if len(parts) < 2:
+              raise SystemExit(f"Expected at least major.minor in base version, got: {base_version}")
+
+          major, minor = parts[0], parts[1]
+          run_number = os.environ["GITHUB_RUN_NUMBER"]
+          run_attempt = int(os.environ["GITHUB_RUN_ATTEMPT"])
+
+          version = f"{major}.{minor}.{run_number}"
+          if run_attempt > 1:
+              version = f"{version}.post{run_attempt - 1}"
+
+          updated = re.sub(
+              r'(?m)^version = ".*"$',
+              f'version = "{version}"',
+              original,
+              count=1,
+          )
+          if updated == original:
+              raise SystemExit("Failed to update version in pyproject.toml")
+
+          pyproject_path.write_text(updated, encoding="utf-8")
+          pathlib.Path(".published-version").write_text(version, encoding="utf-8")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"version={version}\n")
+          print(version)
+          PY
+
+      - name: Run test suite
+        env:
+          PYTHONPATH: .
+        run: pytest -q
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentlens-dist-${{ steps.version.outputs.version }}
+          path: |
+            dist/
+            .published-version
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

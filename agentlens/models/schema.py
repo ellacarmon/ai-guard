@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Union
+from typing import Any, List, Dict, Optional, Union
 
 class Category(str, Enum):
     CODE_EXECUTION = "code_execution"
@@ -116,6 +116,19 @@ class DecisionResult(BaseModel):
     recommendation: str = Field(default="", description="Actionable guidance for the user")
     exploitability: Optional[ExploitabilityResult] = None
 
+
+class SecureExecutionArtifact(BaseModel):
+    path: str
+    content: str
+
+
+class SecureExecutionRecommendation(BaseModel):
+    summary: str = ""
+    profile: Dict[str, Any] = Field(default_factory=dict)
+    instructions: List[str] = Field(default_factory=list)
+    artifacts: List[SecureExecutionArtifact] = Field(default_factory=list)
+
+
 class Report(BaseModel):
     target: str
     target_type: Optional[str] = None
@@ -140,3 +153,4 @@ class Report(BaseModel):
     semantic_verdict: Optional["SemanticVerdict"] = None
     semantic_sample: Optional[SemanticSampleSummary] = None
     logic_audit: Optional[LogicAuditResult] = None
+    secure_execution: Optional[SecureExecutionRecommendation] = None

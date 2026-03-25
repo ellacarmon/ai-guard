@@ -101,6 +101,20 @@ It checks out the PR branch, installs `agentlens-scanner`, runs a repository sca
 
 The example treats `BLOCK` as a failing check and leaves `WARN` visible in the workflow summary without failing the job. If you want warnings to block merges too, change the final enforcement step to fail on exit code `1` as well.
 
+### GitHub Actions example: scan pinned AI dependencies from requirements files
+
+This repository also includes `.github/workflows/agentlens-requirements-ai-scan.yml`, which looks for `requirements*.txt` files in a pull request, extracts pinned Python dependencies, filters them to a curated set of AI-related package names, and scans each pinned version as a `pypi:` target.
+
+Example `requirements.txt` entries that this workflow will pick up:
+
+```txt
+openai==1.68.2
+langchain==0.3.21
+transformers==4.49.0
+```
+
+The example intentionally only scans exact `==` pins so the workflow analyzes the same version that would be installed from the file. Unpinned entries such as `openai>=1.0` or non-AI packages are ignored.
+
 ## LLM Semantic Analysis (Azure AI Foundry)
 
 The static analysis engine is fast and deterministic, but can produce false positives — for example, flagging a legitimate `subprocess` call used for a local math calculation the same way it flags a reverse shell. The semantic analysis layer adds a second-opinion pass that uses an LLM to evaluate the true intent of the flagged code snippet.
@@ -147,21 +161,38 @@ If the LLM API is unavailable or returns an unparseable response, `AgentLens` de
 
 ## Releasing To PyPI
 
-Build the source distribution and wheel:
+This repository includes an automated publish workflow at `.github/workflows/publish-pypi.yml`.
 
-```bash
-python -m pip install --upgrade build twine
-python -m build
-twine check dist/*
+On every push to `main`, GitHub Actions will:
+
+- derive a unique package version for that commit from the base `major.minor` in `pyproject.toml`
+- run the test suite
+- build the wheel and source distribution
+- validate the artifacts with `twine check`
+- publish to PyPI with Trusted Publishing
+
+The generated version format is:
+
+```txt
+<major>.<minor>.<github_run_number>
 ```
 
-Upload manually with Twine:
+If a workflow run is retried, it publishes a unique post-release for that same commit:
 
-```bash
-python -m twine upload dist/*
+```txt
+<major>.<minor>.<github_run_number>.post<N>
 ```
 
-For a safer long-term setup, prefer PyPI Trusted Publishing from GitHub Actions instead of storing a long-lived PyPI token in GitHub secrets.
+### One-time PyPI setup
+
+Configure a Trusted Publisher in PyPI for this repository:
+
+- Owner: your GitHub user or org
+- Repository: `ellacarmon/AgentLens`
+- Workflow name: `publish-pypi.yml`
+- Environment: leave empty unless you later restrict publishing with a GitHub Environment
+
+No long-lived PyPI API token is required when Trusted Publishing is enabled.
 
 ## Contributing
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on submitting pull requests to the project.

@@ -4,6 +4,7 @@ import os
 import sys
 from . import __version__
 from .models.schema import LogicAuditVerdict, Report, Severity
+from .sandbox_provider import SandboxGenerator
 from .core.ingestion import Target, TargetType
 from .core.fetcher import Fetcher
 from .analyzers.ast_code import ASTCodeAnalyzer
@@ -23,6 +24,28 @@ def _fetch_phase_message(target_type: TargetType) -> str:
     if target_type == TargetType.CLAWHUB_SKILL:
         return "Fetching skill from ClawHub..."
     return "Fetching..."
+
+
+def _build_sandbox_input(
+    *,
+    target: str,
+    package_name: str | None,
+    logic_result,
+    audit_context,
+):
+    if audit_context is None or logic_result is None:
+        return None
+    return {
+        "target": target,
+        "package_name": package_name,
+        "target_path": audit_context.target_path,
+        "manifest_path": audit_context.manifest_path,
+        "manifest_text": audit_context.manifest_text,
+        "instruction_path": audit_context.instruction_path,
+        "instruction_text": audit_context.instruction_text,
+        "code_snippets": [snippet.__dict__ for snippet in audit_context.code_snippets],
+        "logic_audit": logic_result.model_dump(),
+    }
 
 
 # Exit code mapping
@@ -98,6 +121,8 @@ def scan(
 
     fetcher = Fetcher(target_obj, verbose=ctx.obj.get('VERBOSE'))
     try:
+        audit_context = None
+
         # Fetch phase
         current_phase = "fetch"
         reporter.phase_start("fetch", _fetch_phase_message(target_obj.type))
@@ -278,6 +303,17 @@ def scan(
 
         reporter.summary(files_count, len(findings))
 
+        secure_execution = None
+        if result["decision"] == "block":
+            sandbox_input = _build_sandbox_input(
+                target=target,
+                package_name=fetcher.resolved_package_name,
+                logic_result=result.get("logic_audit"),
+                audit_context=audit_context,
+            )
+            if sandbox_input is not None:
+                secure_execution = SandboxGenerator().generate_profile(sandbox_input)
+
         # Build Report
         report = Report(
             target=target,
@@ -303,6 +339,7 @@ def scan(
         report.semantic_verdict = result.get("semantic_verdict")
         report.semantic_sample = result.get("semantic_sample")
         report.logic_audit = result.get("logic_audit")
+        report.secure_execution = secure_execution
 
         # Output rendering
         if json_output:
@@ -373,6 +410,17 @@ def scan(
             if report.recommendation:
                 click.echo(click.style(f"\nRecommendation:", bold=True))
                 click.echo(f"  {report.recommendation}")
+
+            if report.secure_execution:
+                click.echo(click.style("\n🛡️ Secure Execution Recommendation:", bold=True))
+                if report.secure_execution.summary:
+                    click.echo(f"  {report.secure_execution.summary}")
+                for instruction in report.secure_execution.instructions:
+                    click.echo(f"  - {instruction}")
+                for artifact in report.secure_execution.artifacts:
+                    click.echo(click.style(f"\n  {artifact.path}", bold=True))
+                    for line in artifact.content.splitlines():
+                        click.echo(f"    {line}")
 
             # Top risks
             if report.top_risks:
