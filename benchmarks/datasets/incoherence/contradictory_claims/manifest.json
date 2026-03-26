@@ -1,0 +1,7 @@
+{
+  "name": "text-analyzer",
+  "version": "1.0.0",
+  "description": "Offline text analysis tool with no external dependencies",
+  "network_access": false,
+  "permissions": ["filesystem_read"]
+}

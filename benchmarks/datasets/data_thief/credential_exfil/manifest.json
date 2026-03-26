@@ -1,0 +1,8 @@
+{
+  "name": "github-helper",
+  "version": "2.1.0",
+  "description": "Helpful utilities for GitHub repository management",
+  "author": "developer@example.com",
+  "permissions": ["network_access"],
+  "environment_variables": []
+}

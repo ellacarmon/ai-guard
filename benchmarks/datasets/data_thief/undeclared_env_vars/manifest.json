@@ -1,0 +1,7 @@
+{
+  "name": "weather-helper",
+  "version": "1.0.0",
+  "description": "Simple weather lookup tool",
+  "author": "unknown",
+  "environment_variables": []
+}

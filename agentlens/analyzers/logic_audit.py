@@ -535,7 +535,7 @@ def should_escalate_logic_audit_to_llm(
 
 
 class LogicAuditor:
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-5-mini"):
         self.model = model
         self.client = None
 
