@@ -3,7 +3,7 @@ import json
 import os
 import sys
 from . import __version__
-from .models.schema import LogicAuditVerdict, Report, Severity
+from .models.schema import BehavioralAnalysisResult, LogicAuditVerdict, Report, Severity
 from .sandbox_provider import SandboxGenerator
 from .core.ingestion import Target, TargetType
 from .core.fetcher import Fetcher
@@ -132,10 +132,10 @@ def main(ctx, verbose):
 @click.option('--policy', 'policy_path', type=click.Path(exists=True, dir_okay=False), help='Decision policy YAML file.')
 @click.option('--scoring-config', type=click.Path(exists=True, dir_okay=False), help='Custom YAML scoring calibration file.')
 @click.option('--semantic', is_flag=True, help='Enable LLM semantic analysis.')
-@click.option('--semantic-model', default='gpt-4o-mini', show_default=True, help='Azure AI Foundry deployment name for semantic analysis.')
+@click.option('--semantic-model', default='gpt-5-mini', show_default=True, help='Azure AI Foundry deployment name for semantic analysis.')
 @click.option('--semantic-threshold', type=click.FloatRange(0.0, 1.0), default=0.85, show_default=True, help='Confidence threshold for semantic override.')
 @click.option('--logic-audit', is_flag=True, help='Enable contextual cross-file logic auditing.')
-@click.option('--logic-audit-model', default='gpt-4o-mini', show_default=True, help='Azure AI Foundry deployment name for logic audit.')
+@click.option('--logic-audit-model', default='gpt-5-mini', show_default=True, help='Azure AI Foundry deployment name for logic audit.')
 @click.option(
     '--semantic-prefilter',
     is_flag=True,
@@ -146,6 +146,11 @@ def main(ctx, verbose):
     default='neuralchemy/prompt-injection-deberta',
     show_default=True,
     help='Hugging Face model id for --semantic-prefilter.',
+)
+@click.option(
+    '--behavioral',
+    is_flag=True,
+    help='Enable behavioral analysis (dynamic imports, runtime execution, wheel unpacking).',
 )
 @click.pass_context
 def scan(
@@ -163,6 +168,7 @@ def scan(
     logic_audit_model,
     semantic_prefilter,
     semantic_prefilter_model,
+    behavioral,
 ):
     """Scan a target URL, local path, or package."""
     reporter = ProgressReporter(verbose=ctx.obj.get('VERBOSE'))
@@ -260,6 +266,40 @@ def scan(
         findings.extend(prompt_analyzer.analyze(staging_path, progress_callback=prompt_cb))
         reporter.progress_done("prompt-analysis")
         reporter.phase_end("prompt-analysis")
+
+        # Behavioral Analysis (optional)
+        behavioral_result = None
+        behavioral_analyzer = None
+        if behavioral:
+            from .behavioral import BehavioralAnalyzer
+            current_phase = "behavioral-analysis"
+            reporter.phase_start("behavioral-analysis", "Running behavioral analysis (dynamic imports, runtime patterns)...")
+
+            behavioral_analyzer = BehavioralAnalyzer(verbose=ctx.obj.get('VERBOSE'))
+            try:
+                behavioral_findings = behavioral_analyzer.analyze(staging_path)
+                findings.extend(behavioral_findings)
+
+                # Build behavioral result summary
+                behavioral_result = BehavioralAnalysisResult(
+                    enabled=True,
+                    findings_count=len(behavioral_findings),
+                    dynamic_imports_detected=sum(1 for f in behavioral_findings if f.rule_id in ['BEH-001', 'BEH-002', 'BEH-003']),
+                    runtime_execution_detected=sum(1 for f in behavioral_findings if f.rule_id in ['BEH-004', 'BEH-005', 'BEH-006']),
+                    obfuscation_detected=sum(1 for f in behavioral_findings if f.rule_id in ['BEH-008', 'BEH-010', 'BEH-011']),
+                    suspicious_patterns_detected=sum(1 for f in behavioral_findings if f.rule_id in ['BEH-007', 'BEH-009']),
+                    unpacked_archive=len(behavioral_analyzer._temp_dirs) > 0,
+                    unpacked_path=behavioral_analyzer._temp_dirs[0] if behavioral_analyzer._temp_dirs else None
+                )
+
+                reporter.phase_end("behavioral-analysis")
+
+            except Exception as e:
+                reporter.phase_end("behavioral-analysis")
+                click.echo(click.style(f"Behavioral analysis warning: {e}", fg="yellow"), err=True)
+                if ctx.obj.get('VERBOSE'):
+                    import traceback
+                    traceback.print_exc()
 
         # Semantic / Hybrid path
         if semantic:
@@ -403,6 +443,7 @@ def scan(
         report.semantic_verdict = result.get("semantic_verdict")
         report.semantic_sample = result.get("semantic_sample")
         report.logic_audit = result.get("logic_audit")
+        report.behavioral_analysis = behavioral_result
         report.secure_execution = secure_execution
 
         # Output rendering
@@ -470,6 +511,20 @@ def scan(
                 if report.logic_audit.rationale:
                     click.echo(f"  Rationale: {report.logic_audit.rationale}")
 
+            if report.behavioral_analysis and report.behavioral_analysis.enabled:
+                click.echo(click.style("\nBehavioral Analysis:", bold=True))
+                click.echo(f"  Findings: {report.behavioral_analysis.findings_count}")
+                if report.behavioral_analysis.dynamic_imports_detected > 0:
+                    click.echo(f"  Dynamic Imports: {report.behavioral_analysis.dynamic_imports_detected}")
+                if report.behavioral_analysis.runtime_execution_detected > 0:
+                    click.echo(f"  Runtime Execution: {report.behavioral_analysis.runtime_execution_detected}")
+                if report.behavioral_analysis.obfuscation_detected > 0:
+                    click.echo(f"  Obfuscation: {report.behavioral_analysis.obfuscation_detected}")
+                if report.behavioral_analysis.suspicious_patterns_detected > 0:
+                    click.echo(f"  Suspicious Patterns: {report.behavioral_analysis.suspicious_patterns_detected}")
+                if report.behavioral_analysis.unpacked_archive:
+                    click.echo(f"  Archive Unpacked: Yes")
+
             # Recommendation
             if report.recommendation:
                 click.echo(click.style(f"\nRecommendation:", bold=True))
@@ -533,6 +588,13 @@ def scan(
         sys.exit(4)
     finally:
         fetcher.cleanup()
+        # Clean up behavioral analyzer temp directories
+        if behavioral_analyzer is not None:
+            try:
+                behavioral_analyzer.cleanup()
+            except Exception as e:
+                if ctx.obj.get('VERBOSE'):
+                    click.echo(click.style(f"Warning: Behavioral cleanup failed: {e}", fg="yellow"), err=True)
 
 @main.command()
 @click.argument('path', type=click.Path(exists=True, dir_okay=False))

@@ -1,0 +1,8 @@
+{
+  "name": "text-formatter",
+  "version": "1.2.0",
+  "description": "Simple text formatting utilities",
+  "author": "formatter@example.com",
+  "permissions": [],
+  "environment_variables": []
+}

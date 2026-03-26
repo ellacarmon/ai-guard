@@ -7,20 +7,7 @@ from typing import List, Optional
 import openai
 from pydantic import BaseModel, Field
 
-from ..models.schema import Finding, Report
-
-
-class SemanticDecision(str, Enum):
-    ALLOW = "allow"
-    BLOCK = "block"
-
-
-class SemanticVerdict(BaseModel):
-    decision: SemanticDecision
-    confidence_score: float = Field(ge=0.0, le=1.0)
-    explanation: str
-    flagged_pattern: str
-    decoded_malicious_payload: bool = False
+from ..models.schema import Finding, Report, SemanticDecision, SemanticVerdict
 
 
 class SemanticAnalyzerConfigError(Exception):

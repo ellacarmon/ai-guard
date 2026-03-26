@@ -12,6 +12,7 @@ It forces targeted code to run through a custom static analysis risk scoring mod
 - **Context-Aware Scoring:** Intelligently extracts structural signals (like `is_framework`) to separate high-risk raw execution from safe library runtime internals.
 - **Confidence Scoring:** Validates the strength and ambiguity of risk signals, gracefully downgrading uncertain blocks to warnings.
 - **LLM Semantic Analysis:** Optional second-opinion pass powered by Azure AI Foundry that evaluates the true intent of flagged code snippets, reducing false positives without sacrificing security coverage.
+- **Behavioral Analysis (NEW):** Optional deep-scan layer that detects dynamic imports, runtime code execution (`exec`/`eval`), obfuscation patterns (base64+exec), and exfiltration domains. Safely unpacks and analyzes `.whl` and `.tar.gz` archives.
 - **Registry Targets:** Scan packages directly with `npm:<package>`, `pypi:<package>`, or `clawhub:<skill>` (downloads are extracted with path-traversal checks on archives).
 - **JS/TS Guardrails:** JavaScript and TypeScript files are scanned for high-risk execution patterns, and `npm:` packages with JS/TS sources are never treated as clean solely because the Python AST analyzer found nothing.
 - **Output Formats:** Rich CLI formatting (yielding clear human-readable explanations and recommendations), or full `Pydantic`-validated JSON for programmatic aggregation.
@@ -158,6 +159,97 @@ Semantic Analysis:
 ```
 
 If the LLM API is unavailable or returns an unparseable response, `AgentLens` degrades gracefully to the static verdict — the scan never fails due to an LLM outage.
+
+## Behavioral Analysis
+
+Behavioral analysis extends AgentLens beyond static AST pattern matching to detect dynamic code execution, runtime module loading, and obfuscation techniques that would otherwise evade traditional scanning.
+
+### What It Detects
+
+The behavioral analyzer identifies:
+
+1. **Dynamic Imports**: Runtime module loading via `__import__()`, `importlib.import_module()`, or obfuscated `getattr(importlib, ...)` patterns
+2. **Runtime Code Execution**: `exec()`, `eval()`, and `compile()` calls, with severity escalation for dynamic (variable) arguments
+3. **Obfuscation Patterns**:
+   - Base64-encoded Python code
+   - Base64 decode combined with `exec`/`eval` (classic obfuscation)
+   - Excessive `getattr()` usage indicating attribute-based obfuscation
+4. **Suspicious Behavioral Patterns**:
+   - Network requests to exfiltration domains (pastebin, webhooks, ngrok tunnels, etc.)
+   - File writes to suspicious locations (`/tmp`, home directory)
+5. **Archive Unpacking**: Safely extracts and analyzes `.whl` and `.tar.gz` packages with path-traversal protection
+
+### When to Use It
+
+Enable behavioral analysis when:
+- Scanning PyPI wheel packages or tarballs that may contain compiled/obfuscated code
+- Investigating skills that use plugin systems or dynamic loading
+- Dealing with packages that have low static risk but suspicious architectural patterns
+- You need deeper inspection beyond surface-level AST analysis
+
+**Note**: Behavioral analysis adds 2-5 seconds per scan and is disabled by default for performance.
+
+### Usage
+
+Add `--behavioral` to any scan:
+
+```bash
+# Scan a local skill with behavioral analysis
+agentlens scan ./suspicious_plugin --behavioral
+
+# Scan a PyPI package (automatically unpacks wheel if needed)
+agentlens scan pypi:analytics-helper --behavioral
+
+# Combine with semantic analysis for maximum coverage
+agentlens scan ./plugin --behavioral --semantic
+```
+
+When behavioral analysis is enabled, the output includes a dedicated summary:
+
+```
+Behavioral Analysis:
+  Findings: 7
+  Dynamic Imports: 3
+  Runtime Execution: 2
+  Obfuscation: 1
+  Suspicious Patterns: 1
+  Archive Unpacked: Yes
+```
+
+### Behavioral Detection Rules
+
+The analyzer uses the following rule IDs (see `agentlens/rules/policy.yaml` for full details):
+
+- **BEH-001**: Dynamic import via `__import__()`
+- **BEH-002**: Dynamic import via `importlib.import_module()`
+- **BEH-003**: Obfuscated dynamic import via `getattr(importlib, ...)`
+- **BEH-004**: Runtime code execution via `exec()`
+- **BEH-005**: Runtime code execution via `eval()`
+- **BEH-006**: Dynamic code compilation via `compile()`
+- **BEH-007**: Suspicious exfiltration domain detected
+- **BEH-008**: Base64 decode + exec pattern (obfuscation)
+- **BEH-009**: Suspicious file write location
+- **BEH-010**: Base64-encoded Python code
+- **BEH-011**: Excessive `getattr()` usage
+
+### Risk Scoring Impact
+
+Behavioral findings contribute to the overall risk score through the feature-driven scoring system:
+
+- **Dynamic Imports** (variable module names): +8.5 to code_execution category
+- **Runtime Execution** (`exec`/`eval` with dynamic args): +9.5 to code_execution category
+- **Obfuscation** (base64+exec): +9.0 to code_execution category
+- **Exfiltration Domains**: +8.0 to network_access category
+
+These scores combine with static analysis findings through probabilistic OR aggregation to produce the final risk score.
+
+### Safety & Performance
+
+- **No Code Execution**: The analyzer never executes untrusted code in the main process
+- **Temporary Isolation**: Archives are unpacked to temporary directories with automatic cleanup
+- **Path Traversal Protection**: All archive extractions check for `..` and absolute paths
+- **Timeout Protection**: Per-analysis timeout of 5 seconds prevents hanging
+- **Graceful Degradation**: If behavioral analysis fails, the scan continues with static analysis only
 
 ## Releasing To PyPI
 

@@ -1,0 +1,8 @@
+{
+  "name": "analytics-helper",
+  "version": "1.0.5",
+  "description": "Simple analytics and logging utilities",
+  "author": "analytics@example.com",
+  "permissions": ["network_access"],
+  "environment_variables": []
+}

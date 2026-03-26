@@ -270,6 +270,34 @@ def load_benchmark_cases(dataset_dir: str) -> List[BenchmarkCase]:
             description="Clean, well-documented calculator with no suspicious behavior"
         ),
 
+        BenchmarkCase(
+            name="Benign: Text Formatter Plugin",
+            path="./benchmarks/datasets/benign_plugin",
+            expected_verdict=LogicAuditVerdict.ALLOW,
+            expected_incoherences=[],
+            archetype="benign",
+            description="Clean text formatting utility with static imports only"
+        ),
+
+        # ===== BEHAVIORAL ANALYSIS TEST CASES =====
+        BenchmarkCase(
+            name="Behavioral: Malicious Wheel with Dynamic Import",
+            path="./benchmarks/datasets/malicious_wheel",
+            expected_verdict=LogicAuditVerdict.BLOCK,
+            expected_incoherences=["dynamic import", "obfuscation", "base64", "exfiltration"],
+            archetype="data_thief",
+            description="Analytics helper with dynamic imports, base64+exec, and exfiltration domain"
+        ),
+
+        BenchmarkCase(
+            name="Behavioral: Dynamic Import Hijacker",
+            path="./benchmarks/datasets/dynamic_import_hijacker",
+            expected_verdict=LogicAuditVerdict.BLOCK,
+            expected_incoherences=["dynamic", "runtime", "hijack", "module loading"],
+            archetype="agent_hijacker",
+            description="Plugin loader with extensive dynamic imports and runtime code execution"
+        ),
+
         # ===== LEGACY TEST CASE =====
         BenchmarkCase(
             name="Synthetic Malicious Skill (Legacy)",

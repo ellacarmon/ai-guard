@@ -26,6 +26,10 @@ class LogicAuditVerdict(str, Enum):
     ALLOW = "ALLOW"
     BLOCK = "BLOCK"
 
+class SemanticDecision(str, Enum):
+    ALLOW = "allow"
+    BLOCK = "block"
+
 class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -97,6 +101,15 @@ class SemanticSampleSummary(BaseModel):
     items: List[SemanticSampleItem] = Field(default_factory=list)
 
 
+class SemanticVerdict(BaseModel):
+    """Verdict from LLM semantic analysis."""
+    decision: SemanticDecision
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    explanation: str
+    flagged_pattern: str
+    decoded_malicious_payload: bool = False
+
+
 class LogicAuditResult(BaseModel):
     risk_score: int = Field(ge=0, le=10)
     incoherences: List[str] = Field(default_factory=list)
@@ -120,6 +133,18 @@ class DecisionResult(BaseModel):
 class SecureExecutionArtifact(BaseModel):
     path: str
     content: str
+
+
+class BehavioralAnalysisResult(BaseModel):
+    """Results from behavioral analysis (dynamic imports, runtime execution, etc.)."""
+    enabled: bool = False
+    findings_count: int = 0
+    dynamic_imports_detected: int = 0
+    runtime_execution_detected: int = 0
+    obfuscation_detected: int = 0
+    suspicious_patterns_detected: int = 0
+    unpacked_archive: bool = False
+    unpacked_path: Optional[str] = None
 
 
 class SecureExecutionRecommendation(BaseModel):
@@ -150,7 +175,8 @@ class Report(BaseModel):
     capabilities: List[str]
     findings: List[Finding]
     exploitability: Optional[ExploitabilityResult] = None
-    semantic_verdict: Optional["SemanticVerdict"] = None
+    semantic_verdict: Optional[SemanticVerdict] = None
     semantic_sample: Optional[SemanticSampleSummary] = None
     logic_audit: Optional[LogicAuditResult] = None
+    behavioral_analysis: Optional[BehavioralAnalysisResult] = None
     secure_execution: Optional[SecureExecutionRecommendation] = None

@@ -1,0 +1,236 @@
+## AgentLens Policy Configuration
+## Includes behavioral analysis rules for dynamic code detection
+
+# === Severity Weights ===
+severity_weights:
+  low: 1.0
+  medium: 2.5
+  high: 5.0
+  critical: 10.0
+
+# === Risk Thresholds ===
+risk_thresholds:
+  medium: 4.0
+  high: 7.0
+  critical: 9.0
+
+# === Feature-Driven Category Scoring ===
+feature_scores:
+  code_execution:
+    # Static analysis patterns
+    "execution_type=remote_execution": 9.0
+    "execution_type=dynamic_eval": 8.0
+    "execution_type=shell_execution": 7.0
+    "execution_type=subprocess": 4.0
+    "execution_type=unreviewed_script_runtime": 5.0
+    "execution_type=safe_runtime_execution": 2.0
+    "is_framework=True": 0.0
+
+    # Signal strength
+    "execution_signal=strong": 8.0
+    "execution_signal=medium": 5.0
+    "execution_signal=weak": 2.0
+
+    # === BEHAVIORAL ANALYSIS FEATURES ===
+    # Dynamic imports (runtime module loading)
+    "has_dynamic_import=True": 6.0
+    "dynamic_import_signal=strong": 8.5  # Variable module names
+    "dynamic_import_signal=medium": 5.5  # Constant module names via __import__
+    "dynamic_import_signal=weak": 3.0
+
+    # Runtime code execution
+    "has_runtime_execution=True": 8.0
+    "runtime_exec_signal=strong": 9.5  # Dynamic exec/eval
+    "runtime_exec_signal=medium": 7.0  # Static exec/eval
+
+    # Obfuscation indicators
+    "has_obfuscation=True": 7.0
+    "obfuscation_signal=strong": 9.0  # Base64+exec pattern
+    "obfuscation_signal=medium": 6.0  # Encoded Python code
+    "obfuscation_signal=weak": 4.0    # Excessive getattr
+
+    # Getattr obfuscation on critical modules
+    "has_getattr_obfuscation=True": 5.5
+
+  prompt_injection:
+    has_prompt_injection: 2.0
+    "injection_signal=strong": 8.0
+    "injection_signal=medium": 5.0
+    "injection_signal=weak": 2.0
+    "has_agent_hijacker_fingerprint=True": 8.0
+    "has_instruction_override=True": 7.5
+    "has_hidden_instructions=True": 5.5
+    "has_behavior_manipulation=True": 4.0
+
+  supply_chain:
+    has_supply_chain_risk: 6.0
+    "has_data_thief_fingerprint=True": 9.5
+    "has_credential_harvest=True": 7.0
+    "has_remote_exec=True": 8.0
+    "has_obfuscation=True": 7.0
+
+    # === BEHAVIORAL: Archive unpacking ===
+    "unpacked_archive=True": 3.0  # Wheels/tarballs analyzed
+    "suspicious_archive_content=True": 8.0
+
+  filesystem_access:
+    has_filesystem_access: 4.0
+
+    # === BEHAVIORAL: Suspicious file operations ===
+    "suspicious_file_write=True": 6.0
+    "tmp_write_detected=True": 5.0
+
+  network_access:
+    has_network_access: 4.0
+
+    # === BEHAVIORAL: Exfiltration patterns ===
+    "suspicious_domain_detected=True": 8.0
+    "exfiltration_pattern=True": 8.5
+    "webhook_detected=True": 7.5
+    "pastebin_detected=True": 7.0
+
+# === Decision Policy ===
+decision:
+  # Risk level mapping (score → level)
+  risk_levels:
+    critical: 9.0
+    high: 7.0
+    medium: 4.0
+    # anything below medium → "low"
+
+  # Block rules
+  block_if:
+    risk_score: 8.0
+    # Block if ANY single category exceeds its threshold
+    categories:
+      prompt_injection: 7.0
+      code_execution: 7.0
+      supply_chain: 8.0
+
+    # Block if these category COMBINATIONS co-occur above thresholds
+    combinations:
+      - categories: [prompt_injection, code_execution]
+        min_scores: [4.0, 4.0]
+        reason: "Prompt injection combined with code execution capability"
+
+      - categories: [prompt_injection, network_access]
+        min_scores: [5.0, 5.0]
+        reason: "Prompt injection combined with network exfiltration capability"
+
+      # === BEHAVIORAL COMBINATIONS ===
+      - categories: [code_execution, network_access]
+        min_scores: [6.0, 6.0]
+        reason: "Dynamic code execution combined with network access (potential runtime exfiltration)"
+
+      - categories: [supply_chain, code_execution]
+        min_scores: [5.0, 7.0]
+        reason: "Supply chain risk with obfuscated/dynamic code execution"
+
+  # Warn rules
+  warn_if:
+    risk_score: 4.0
+    categories:
+      prompt_injection: 4.0
+      code_execution: 4.0
+      supply_chain: 5.0
+      filesystem_access: 5.0
+      network_access: 5.0
+
+  # Confidence
+  confidence:
+    low_confidence_threshold: 0.5
+    downgrade_on_low_confidence: true  # block→warn, warn→allow
+
+  # Recommendation messages
+  recommendations:
+    allow: "Safe to install — no significant risks detected."
+    warn: "Install with caution — review flagged risks before use."
+    block_high: "Manual review required — significant risks detected."
+    block_critical: "Do not install — critical security risks detected."
+
+# === Behavioral Analysis Rule Definitions ===
+behavioral_rules:
+  # Dynamic Import Detection
+  - id: BEH-001
+    name: "Dynamic Import via __import__"
+    category: code_execution
+    severity_dynamic: high      # Dynamic module name
+    severity_static: medium     # Static module name
+    confidence: 0.9
+    description: "Detects runtime module loading via __import__()"
+
+  - id: BEH-002
+    name: "Dynamic Import via importlib.import_module"
+    category: code_execution
+    severity_dynamic: high
+    severity_static: medium
+    confidence: 0.9
+    description: "Detects runtime module loading via importlib"
+
+  - id: BEH-003
+    name: "Obfuscated Dynamic Import"
+    category: code_execution
+    severity: high
+    confidence: 0.85
+    description: "Detects obfuscated dynamic imports via getattr(importlib, ...)"
+
+  # Runtime Execution
+  - id: BEH-004
+    name: "Runtime Code Execution via exec()"
+    category: code_execution
+    severity_dynamic: critical  # Dynamic argument
+    severity_static: high       # Static argument
+    confidence: 0.95
+    description: "Detects arbitrary code execution via exec()"
+
+  - id: BEH-005
+    name: "Runtime Code Execution via eval()"
+    category: code_execution
+    severity_dynamic: critical
+    severity_static: high
+    confidence: 0.95
+    description: "Detects arbitrary code evaluation via eval()"
+
+  - id: BEH-006
+    name: "Dynamic Code Compilation"
+    category: code_execution
+    severity: high
+    confidence: 0.85
+    description: "Detects dynamic code compilation via compile()"
+
+  # Suspicious Patterns
+  - id: BEH-007
+    name: "Suspicious Exfiltration Domain"
+    category: network_access
+    severity: high
+    confidence: 0.8
+    description: "Detects common exfiltration domains (pastebin, webhooks, etc.)"
+
+  - id: BEH-008
+    name: "Base64 Decode + Exec Pattern"
+    category: code_execution
+    severity: critical
+    confidence: 0.95
+    description: "Detects base64 decode combined with exec/eval (obfuscation)"
+
+  - id: BEH-009
+    name: "Suspicious File Write Location"
+    category: filesystem_access
+    severity: medium
+    confidence: 0.7
+    description: "Detects writes to /tmp or home directory"
+
+  # Obfuscation
+  - id: BEH-010
+    name: "Base64-Encoded Python Code"
+    category: code_execution
+    severity: high
+    confidence: 0.85
+    description: "Detects obfuscated Python code in base64 encoding"
+
+  - id: BEH-011
+    name: "Excessive getattr Usage"
+    category: code_execution
+    severity: medium
+    confidence: 0.6
+    description: "Detects potential obfuscation via excessive getattr calls"

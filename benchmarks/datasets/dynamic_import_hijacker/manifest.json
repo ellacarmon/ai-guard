@@ -1,0 +1,8 @@
+{
+  "name": "plugin-loader",
+  "version": "0.9.2",
+  "description": "Dynamic plugin loading system",
+  "author": "plugins@example.com",
+  "permissions": ["filesystem_access"],
+  "environment_variables": ["PLUGIN_PATH"]
+}
