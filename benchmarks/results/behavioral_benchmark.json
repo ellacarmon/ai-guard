@@ -1,0 +1,384 @@
+{
+  "summary": {
+    "total_cases": 9,
+    "true_positives": 4,
+    "false_positives": 0,
+    "true_negatives": 5,
+    "false_negatives": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "accuracy": 1.0,
+    "avg_execution_time_ms": 1.4639960394965277,
+    "total_execution_time_ms": 13.17596435546875,
+    "total_findings": 16,
+    "avg_findings_per_case": 1.7777777777777777,
+    "rule_coverage": {
+      "BEH-007": 2,
+      "BEH-003": 1,
+      "BEH-002": 4,
+      "BEH-001": 2,
+      "BEH-006": 1,
+      "BEH-004": 2,
+      "BEH-008": 1
+    },
+    "unpacking_success_rate": 1.0
+  },
+  "results": [
+    {
+      "case_name": "Malicious Wheel: Dynamic Import + Base64+Exec",
+      "expected_decision": "block",
+      "actual_findings_count": 4,
+      "expected_findings_count": 4,
+      "detected_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-003",
+        "BEH-007"
+      ],
+      "expected_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-003",
+        "BEH-007"
+      ],
+      "matched_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-003",
+        "BEH-007"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.4369487762451172,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-001",
+          "severity": "high",
+          "description": "Dynamic import using __import__() detected",
+          "file_path": "analytics.py",
+          "evidence": "__import__(module_name)"
+        },
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "analytics.py",
+          "evidence": "importlib.import_module(module_name)"
+        },
+        {
+          "rule_id": "BEH-003",
+          "severity": "high",
+          "description": "Obfuscated dynamic import via getattr(importlib, ...) detected",
+          "file_path": "analytics.py",
+          "evidence": "getattr(importlib, 'import_module')"
+        },
+        {
+          "rule_id": "BEH-007",
+          "severity": "high",
+          "description": "Suspicious exfiltration domain detected (pastebin, webhook, etc.)",
+          "file_path": "analytics.py",
+          "evidence": ""
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Dynamic Import Hijacker: Extensive Runtime Loading",
+      "expected_decision": "block",
+      "actual_findings_count": 5,
+      "expected_findings_count": 5,
+      "detected_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-006",
+        "BEH-007"
+      ],
+      "expected_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-006",
+        "BEH-007"
+      ],
+      "matched_rule_ids": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-006",
+        "BEH-007"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 2.000093460083008,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-001",
+          "severity": "high",
+          "description": "Dynamic import using __import__() detected",
+          "file_path": "loader.py",
+          "evidence": "__import__(plugin_name)"
+        },
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "loader.py",
+          "evidence": "importlib.import_module(plugin_name)"
+        },
+        {
+          "rule_id": "BEH-001",
+          "severity": "medium",
+          "description": "Dynamic import using __import__() detected",
+          "file_path": "loader.py",
+          "evidence": "__import__('importlib')"
+        },
+        {
+          "rule_id": "BEH-006",
+          "severity": "high",
+          "description": "Dynamic code compilation via compile() detected",
+          "file_path": "loader.py",
+          "evidence": "compile(method_code, '<string>', 'exec')"
+        },
+        {
+          "rule_id": "BEH-007",
+          "severity": "high",
+          "description": "Suspicious exfiltration domain detected (pastebin, webhook, etc.)",
+          "file_path": "loader.py",
+          "evidence": ""
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Adversarial: Prompt Injection in Code Comments",
+      "expected_decision": "block",
+      "actual_findings_count": 2,
+      "expected_findings_count": 2,
+      "detected_rule_ids": [
+        "BEH-004",
+        "BEH-008"
+      ],
+      "expected_rule_ids": [
+        "BEH-004",
+        "BEH-008"
+      ],
+      "matched_rule_ids": [
+        "BEH-004",
+        "BEH-008"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.0228157043457031,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-004",
+          "severity": "critical",
+          "description": "Runtime code execution via exec() detected",
+          "file_path": "malicious.py",
+          "evidence": "exec(base64.b64decode(config_code))"
+        },
+        {
+          "rule_id": "BEH-008",
+          "severity": "critical",
+          "description": "Base64 decode combined with exec/eval detected (likely obfuscation)",
+          "file_path": "malicious.py",
+          "evidence": "exec(base64.b64decode(config_code))"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Adversarial: Prompt Injection in Manifest",
+      "expected_decision": "block",
+      "actual_findings_count": 1,
+      "expected_findings_count": 1,
+      "detected_rule_ids": [
+        "BEH-004"
+      ],
+      "expected_rule_ids": [
+        "BEH-004"
+      ],
+      "matched_rule_ids": [
+        "BEH-004"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.0938644409179688,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-004",
+          "severity": "critical",
+          "description": "Runtime code execution via exec() detected",
+          "file_path": "analytics.py",
+          "evidence": "exec(decoded)"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Benign Plugin: Static Imports Only",
+      "expected_decision": "allow",
+      "actual_findings_count": 0,
+      "expected_findings_count": 0,
+      "detected_rule_ids": [],
+      "expected_rule_ids": [],
+      "matched_rule_ids": [],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.86920166015625,
+      "unpacked_successfully": true,
+      "findings_details": [],
+      "confusion_matrix": {
+        "tp": false,
+        "fp": false,
+        "tn": true,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Benign Calculator: Pure Math",
+      "expected_decision": "allow",
+      "actual_findings_count": 0,
+      "expected_findings_count": 0,
+      "detected_rule_ids": [],
+      "expected_rule_ids": [],
+      "matched_rule_ids": [],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 0.9450912475585938,
+      "unpacked_successfully": true,
+      "findings_details": [],
+      "confusion_matrix": {
+        "tp": false,
+        "fp": false,
+        "tn": true,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Benign Framework: Django App with Plugin Loader",
+      "expected_decision": "allow",
+      "actual_findings_count": 1,
+      "expected_findings_count": 1,
+      "detected_rule_ids": [
+        "BEH-002"
+      ],
+      "expected_rule_ids": [
+        "BEH-002"
+      ],
+      "matched_rule_ids": [
+        "BEH-002"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.1191368103027344,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "views.py",
+          "evidence": "importlib.import_module(f'apps.{plugin_name}.views')"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": false,
+        "fp": false,
+        "tn": true,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Benign Framework: Pytest Plugin with Dynamic Fixtures",
+      "expected_decision": "allow",
+      "actual_findings_count": 3,
+      "expected_findings_count": 3,
+      "detected_rule_ids": [
+        "BEH-002"
+      ],
+      "expected_rule_ids": [
+        "BEH-002"
+      ],
+      "matched_rule_ids": [
+        "BEH-002"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.3947486877441406,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "conftest.py",
+          "evidence": "importlib.import_module(f'tests.fixtures.{fixture_name}')"
+        },
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "conftest.py",
+          "evidence": "importlib.import_module(module_path)"
+        },
+        {
+          "rule_id": "BEH-002",
+          "severity": "high",
+          "description": "Dynamic import using importlib.import_module() detected",
+          "file_path": "conftest.py",
+          "evidence": "importlib.import_module(plugin_name)"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": false,
+        "fp": false,
+        "tn": true,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Benign Tool: CLI Wrapper with Subprocess",
+      "expected_decision": "allow",
+      "actual_findings_count": 0,
+      "expected_findings_count": 0,
+      "detected_rule_ids": [],
+      "expected_rule_ids": [],
+      "matched_rule_ids": [],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 2.2940635681152344,
+      "unpacked_successfully": true,
+      "findings_details": [],
+      "confusion_matrix": {
+        "tp": false,
+        "fp": false,
+        "tn": true,
+        "fn": false
+      }
+    }
+  ]
+}
