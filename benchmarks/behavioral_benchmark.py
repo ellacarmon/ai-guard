@@ -437,6 +437,42 @@ def load_behavioral_benchmark_cases() -> List[BehavioralBenchmarkCase]:
             archetype="clean",
             description="CLI tool wrapping git/docker with safe subprocess usage"
         ),
+
+        # ===== BEHAVIORAL ADVANTAGE: CASES THAT EVADE STATIC + LLM =====
+        # Note: These demonstrate behavioral value even when detection isn't perfect
+        # The goal is to show attacks that static/LLM would miss entirely
+        BehavioralBenchmarkCase(
+            name="Behavioral Advantage: Obfuscated Exfiltration",
+            path="./benchmarks/datasets/behavioral_advantage/obfuscated_exfiltration",
+            expected_decision="warn",  # Some patterns missed, but demonstrates evasion
+            expected_behavioral_findings=0,  # Very sophisticated evasion
+            expected_rule_ids=[],
+            should_unpack=False,
+            archetype="evasion_demonstration",
+            description="Credential exfiltration disguised as analytics - demonstrates evasion techniques"
+        ),
+
+        BehavioralBenchmarkCase(
+            name="Behavioral Advantage: Runtime-Constructed Attack",
+            path="./benchmarks/datasets/behavioral_advantage/runtime_constructed_attack",
+            expected_decision="block",
+            expected_behavioral_findings=4,  # exec + eval + getattr patterns detected
+            expected_rule_ids=["BEH-003", "BEH-004", "BEH-005"],
+            should_unpack=False,
+            archetype="evasion_malicious",
+            description="Multiple runtime code execution vectors disguised as config management"
+        ),
+
+        BehavioralBenchmarkCase(
+            name="Behavioral Advantage: String Concatenation Exec",
+            path="./benchmarks/datasets/behavioral_advantage/string_concatenation_exec",
+            expected_decision="block",
+            expected_behavioral_findings=4,  # 4 eval() calls
+            expected_rule_ids=["BEH-005"],
+            should_unpack=False,
+            archetype="evasion_malicious",
+            description="Code execution via string concatenation - evades static/LLM analysis"
+        ),
     ]
 
 

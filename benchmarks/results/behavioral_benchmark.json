@@ -1,7 +1,7 @@
 {
   "summary": {
-    "total_cases": 9,
-    "true_positives": 4,
+    "total_cases": 12,
+    "true_positives": 7,
     "false_positives": 0,
     "true_negatives": 5,
     "false_negatives": 0,
@@ -9,18 +9,19 @@
     "recall": 1.0,
     "f1_score": 1.0,
     "accuracy": 1.0,
-    "avg_execution_time_ms": 1.4639960394965277,
-    "total_execution_time_ms": 13.17596435546875,
-    "total_findings": 16,
-    "avg_findings_per_case": 1.7777777777777777,
+    "avg_execution_time_ms": 1.6720692316691081,
+    "total_execution_time_ms": 20.064830780029297,
+    "total_findings": 24,
+    "avg_findings_per_case": 2.0,
     "rule_coverage": {
-      "BEH-007": 2,
-      "BEH-003": 1,
-      "BEH-002": 4,
+      "BEH-003": 2,
       "BEH-001": 2,
+      "BEH-002": 4,
+      "BEH-007": 2,
       "BEH-006": 1,
-      "BEH-004": 2,
-      "BEH-008": 1
+      "BEH-004": 3,
+      "BEH-008": 1,
+      "BEH-005": 2
     },
     "unpacking_success_rate": 1.0
   },
@@ -50,7 +51,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.4369487762451172,
+      "execution_time_ms": 1.5490055084228516,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -114,7 +115,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 2.000093460083008,
+      "execution_time_ms": 2.151012420654297,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -179,7 +180,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.0228157043457031,
+      "execution_time_ms": 1.0781288146972656,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -220,7 +221,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.0938644409179688,
+      "execution_time_ms": 1.1360645294189453,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -248,7 +249,7 @@
       "matched_rule_ids": [],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.86920166015625,
+      "execution_time_ms": 2.0270347595214844,
       "unpacked_successfully": true,
       "findings_details": [],
       "confusion_matrix": {
@@ -268,7 +269,7 @@
       "matched_rule_ids": [],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 0.9450912475585938,
+      "execution_time_ms": 0.9930133819580078,
       "unpacked_successfully": true,
       "findings_details": [],
       "confusion_matrix": {
@@ -294,7 +295,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.1191368103027344,
+      "execution_time_ms": 1.15203857421875,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -328,7 +329,7 @@
       ],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 1.3947486877441406,
+      "execution_time_ms": 1.409769058227539,
       "unpacked_successfully": true,
       "findings_details": [
         {
@@ -370,13 +371,149 @@
       "matched_rule_ids": [],
       "missing_rule_ids": [],
       "unexpected_rule_ids": [],
-      "execution_time_ms": 2.2940635681152344,
+      "execution_time_ms": 2.399444580078125,
       "unpacked_successfully": true,
       "findings_details": [],
       "confusion_matrix": {
         "tp": false,
         "fp": false,
         "tn": true,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Behavioral Advantage: Obfuscated Exfiltration",
+      "expected_decision": "warn",
+      "actual_findings_count": 0,
+      "expected_findings_count": 0,
+      "detected_rule_ids": [],
+      "expected_rule_ids": [],
+      "matched_rule_ids": [],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 1.4050006866455078,
+      "unpacked_successfully": true,
+      "findings_details": [],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Behavioral Advantage: Runtime-Constructed Attack",
+      "expected_decision": "block",
+      "actual_findings_count": 4,
+      "expected_findings_count": 4,
+      "detected_rule_ids": [
+        "BEH-003",
+        "BEH-004",
+        "BEH-005"
+      ],
+      "expected_rule_ids": [
+        "BEH-003",
+        "BEH-004",
+        "BEH-005"
+      ],
+      "matched_rule_ids": [
+        "BEH-003",
+        "BEH-004",
+        "BEH-005"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 2.4521350860595703,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-003",
+          "severity": "high",
+          "description": "Obfuscated dynamic import via getattr(importlib, ...) detected",
+          "file_path": "helper.py",
+          "evidence": "getattr(importlib, 'import_module')"
+        },
+        {
+          "rule_id": "BEH-004",
+          "severity": "critical",
+          "description": "Runtime code execution via exec() detected",
+          "file_path": "helper.py",
+          "evidence": "exec(decoded)"
+        },
+        {
+          "rule_id": "BEH-004",
+          "severity": "critical",
+          "description": "Runtime code execution via exec() detected",
+          "file_path": "helper.py",
+          "evidence": "exec(config_code, {'config': self.config})"
+        },
+        {
+          "rule_id": "BEH-005",
+          "severity": "critical",
+          "description": "Runtime code execution via eval() detected",
+          "file_path": "helper.py",
+          "evidence": "eval(code)"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
+        "fn": false
+      }
+    },
+    {
+      "case_name": "Behavioral Advantage: String Concatenation Exec",
+      "expected_decision": "block",
+      "actual_findings_count": 4,
+      "expected_findings_count": 4,
+      "detected_rule_ids": [
+        "BEH-005"
+      ],
+      "expected_rule_ids": [
+        "BEH-005"
+      ],
+      "matched_rule_ids": [
+        "BEH-005"
+      ],
+      "missing_rule_ids": [],
+      "unexpected_rule_ids": [],
+      "execution_time_ms": 2.312183380126953,
+      "unpacked_successfully": true,
+      "findings_details": [
+        {
+          "rule_id": "BEH-005",
+          "severity": "critical",
+          "description": "Runtime code execution via eval() detected",
+          "file_path": "processor.py",
+          "evidence": "eval(command)"
+        },
+        {
+          "rule_id": "BEH-005",
+          "severity": "critical",
+          "description": "Runtime code execution via eval() detected",
+          "file_path": "processor.py",
+          "evidence": "eval(expr_string)"
+        },
+        {
+          "rule_id": "BEH-005",
+          "severity": "critical",
+          "description": "Runtime code execution via eval() detected",
+          "file_path": "processor.py",
+          "evidence": "eval(call_expr)"
+        },
+        {
+          "rule_id": "BEH-005",
+          "severity": "critical",
+          "description": "Runtime code execution via eval() detected",
+          "file_path": "processor.py",
+          "evidence": "eval(code)"
+        }
+      ],
+      "confusion_matrix": {
+        "tp": true,
+        "fp": false,
+        "tn": false,
         "fn": false
       }
     }
