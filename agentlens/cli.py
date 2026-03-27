@@ -188,6 +188,7 @@ def scan(
         sys.exit(3)
 
     fetcher = Fetcher(target_obj, verbose=ctx.obj.get('VERBOSE'))
+    behavioral_analyzer = None  # Initialize before try block to avoid UnboundLocalError in finally
     try:
         audit_context = None
 
@@ -269,7 +270,6 @@ def scan(
 
         # Behavioral Analysis (optional)
         behavioral_result = None
-        behavioral_analyzer = None
         if behavioral:
             from .behavioral import BehavioralAnalyzer
             current_phase = "behavioral-analysis"
